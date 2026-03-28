@@ -124,3 +124,69 @@ async def test_remove_password_clears_password_and_totp() -> None:
 
     with pytest.raises(PasswordNotConfiguredError):
         await service.verify_password("password123")
+
+
+@pytest.mark.asyncio
+async def test_session_state_requires_bootstrap_when_password_missing() -> None:
+    repository = _FakeRepository()
+    service = DashboardAuthService(repository, DashboardSessionStore())
+
+    session = await service.get_session_state(session_id=None)
+
+    assert session.setup_required is True
+    assert session.password_required is False
+    assert session.authenticated is False
+    assert session.totp_required_on_login is False
+    assert session.totp_configured is False
+
+
+@pytest.mark.asyncio
+async def test_session_state_requires_login_when_password_exists() -> None:
+    repository = _FakeRepository()
+    service = DashboardAuthService(repository, DashboardSessionStore())
+    await service.setup_password("password123")
+
+    session = await service.get_session_state(session_id=None)
+
+    assert session.setup_required is False
+    assert session.password_required is True
+    assert session.authenticated is False
+    assert session.totp_required_on_login is False
+
+
+@pytest.mark.asyncio
+async def test_session_state_marks_totp_pending_after_password_login() -> None:
+    repository = _FakeRepository()
+    store = DashboardSessionStore()
+    service = DashboardAuthService(repository, store)
+    await service.setup_password("password123")
+    repository.settings.totp_required_on_login = True
+    repository.settings.totp_secret_encrypted = b"secret"
+
+    session_id = store.create(password_verified=True, totp_verified=False)
+    session = await service.get_session_state(session_id=session_id)
+
+    assert session.setup_required is False
+    assert session.password_required is True
+    assert session.authenticated is False
+    assert session.totp_required_on_login is True
+    assert session.totp_configured is True
+
+
+@pytest.mark.asyncio
+async def test_session_state_marks_authenticated_after_totp_verification() -> None:
+    repository = _FakeRepository()
+    store = DashboardSessionStore()
+    service = DashboardAuthService(repository, store)
+    await service.setup_password("password123")
+    repository.settings.totp_required_on_login = True
+    repository.settings.totp_secret_encrypted = b"secret"
+
+    session_id = store.create(password_verified=True, totp_verified=True)
+    session = await service.get_session_state(session_id=session_id)
+
+    assert session.setup_required is False
+    assert session.password_required is True
+    assert session.authenticated is True
+    assert session.totp_required_on_login is False
+    assert session.totp_configured is True

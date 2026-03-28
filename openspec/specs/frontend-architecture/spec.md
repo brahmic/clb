@@ -18,7 +18,7 @@ The frontend SHALL be a standalone Vite + React + TypeScript project located at 
 - **THEN** Vite outputs optimized assets (JS, CSS, index.html) to `app/static/` with content-hashed filenames
 
 ### Requirement: SPA routing
-The application SHALL use React Router v6 for client-side routing with four routes: `/dashboard`, `/accounts`, `/settings`, `/firewall`. The root path `/` SHALL redirect to `/dashboard`. FastAPI SHALL serve `index.html` for all unmatched routes as a SPA fallback.
+The application SHALL use React Router v6 for client-side routing with five routes: `/login`, `/dashboard`, `/accounts`, `/settings`, `/firewall`. The root path `/` SHALL redirect to `/dashboard`. FastAPI SHALL serve `index.html` for all unmatched routes as a SPA fallback.
 
 #### Scenario: Direct navigation to route
 - **WHEN** a user navigates directly to `/firewall` in the browser
@@ -28,14 +28,18 @@ The application SHALL use React Router v6 for client-side routing with four rout
 - **WHEN** a user clicks the "Firewall" tab from another page
 - **THEN** the URL changes to `/firewall` without full page reload and the Firewall page renders
 
+#### Scenario: Unauthenticated browser navigation to protected route
+- **WHEN** a browser requests `/dashboard` without a valid dashboard session
+- **THEN** FastAPI redirects the HTML navigation request to `/login`
+
 ### Requirement: Authentication gate
 
-The application SHALL check the session state via `GET /api/dashboard-auth/session` on initial load. When `passwordRequired` is true and `authenticated` is false, the application MUST render only the login form. All other routes and UI elements MUST be hidden until authenticated.
+The application SHALL check the session state via `GET /api/dashboard-auth/session` on initial load. The application MUST expose `/login` as the only public SPA route. When `setupRequired` is true, `/login` MUST render only the initial password setup form. When `passwordRequired` is true and `authenticated` is false, `/login` MUST render only the password login form or TOTP prompt. All other routes and UI elements MUST be hidden until authenticated.
 
 #### Scenario: Unauthenticated load with password required
 
-- **WHEN** the app loads and the session endpoint returns `{ "passwordRequired": true, "authenticated": false }`
-- **THEN** only the login form is visible; navigation tabs and page content are not rendered
+- **WHEN** the app loads and the session endpoint returns `{ "setupRequired": false, "passwordRequired": true, "authenticated": false }`
+- **THEN** the user is routed to `/login`, only the login form is visible, and navigation tabs and page content are not rendered
 
 #### Scenario: Authenticated load
 
@@ -44,8 +48,18 @@ The application SHALL check the session state via `GET /api/dashboard-auth/sessi
 
 #### Scenario: TOTP verification pending
 
-- **WHEN** the session returns `{ "passwordRequired": true, "authenticated": false, "totpRequiredOnLogin": true }` and the user has completed password login
+- **WHEN** the session returns `{ "setupRequired": false, "passwordRequired": true, "authenticated": false, "totpRequiredOnLogin": true }` and the user has completed password login
 - **THEN** a TOTP input dialog is shown; the full UI is not accessible until TOTP verification succeeds
+
+#### Scenario: Initial bootstrap requires password setup
+
+- **WHEN** the app loads and the session endpoint returns `{ "setupRequired": true, "passwordRequired": false, "authenticated": false }`
+- **THEN** the user is routed to `/login` and only the initial password setup form is visible
+
+#### Scenario: Authenticated user visits /login
+
+- **WHEN** the app is already authenticated and the user navigates to `/login`
+- **THEN** the SPA redirects to `/dashboard`
 
 ### Requirement: Theme support
 
@@ -303,4 +317,3 @@ The Accounts page MUST render known additional quotas with their mapped user-fac
 - **WHEN** an account summary contains an additional quota whose canonical key corresponds to `gpt-5.3-codex-spark`
 - **AND** the raw upstream `limitName` has changed from an earlier alias
 - **THEN** the Accounts page renders the quota label as `GPT-5.3-Codex-Spark`
-

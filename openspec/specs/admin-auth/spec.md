@@ -5,7 +5,7 @@ TBD - created by archiving change admin-auth-and-api-keys. Update Purpose after 
 ## Requirements
 ### Requirement: Password setup
 
-The system SHALL allow the admin to set a password from the settings page when no password is currently configured. The password MUST be hashed with bcrypt before storage. Setting a password SHALL transition the system from unauthenticated mode to password-protected mode.
+The system SHALL allow the admin to set a password when no password is currently configured. The password MUST be hashed with bcrypt before storage. Setting a password SHALL transition the system from bootstrap-required mode to password-protected mode and MUST immediately issue a valid dashboard session.
 
 #### Scenario: First-time password setup
 
@@ -62,7 +62,7 @@ The system SHALL allow the admin to change the password via `POST /api/dashboard
 
 ### Requirement: Password removal
 
-The system SHALL allow the admin to remove the password via `DELETE /api/dashboard-auth/password` by providing the current password in the request body. Removing the password MUST also disable TOTP (`totp_required_on_login = false`) and clear the TOTP secret to return the system to unauthenticated mode. When `totp_required_on_login` is true, the session MUST include `pw=true` and `tv=true`.
+The system SHALL allow the admin to remove the password via `DELETE /api/dashboard-auth/password` by providing the current password in the request body. Removing the password MUST also disable TOTP (`totp_required_on_login = false`) and clear the TOTP secret to return the system to bootstrap-required mode. When `totp_required_on_login` is true, the session MUST include `pw=true` and `tv=true`.
 
 #### Scenario: Successful password removal
 
@@ -83,7 +83,7 @@ The system SHALL allow the admin to remove the password via `DELETE /api/dashboa
 
 The system SHALL enforce session authentication on `/api/*` routes except `/api/dashboard-auth/*`. Authentication SHALL be enforced via a router-level dependency guard, not ASGI middleware.
 
-Authentication required condition: the system SHALL evaluate `password_hash` and `totp_required_on_login` together to determine whether authentication is required. When `password_hash` is NULL **and** `totp_required_on_login` is false, the guard MUST allow all requests (unauthenticated mode). When either `password_hash` is set **or** `totp_required_on_login` is true, the guard MUST require a valid session.
+Authentication required condition: the system SHALL evaluate `password_hash` and `totp_required_on_login` together to determine whether authentication is required. The guard MUST fail closed when `password_hash` is NULL. An uninitialized dashboard is NOT public; protected dashboard routes MUST still require a valid session and therefore return 401 until the first password is set.
 
 Session validation steps when `requires_auth` is true:
 1. A valid session cookie MUST be present (otherwise 401)
@@ -116,42 +116,42 @@ The guard SHALL raise a domain exception on authentication failure. The exceptio
 - **AND** codex bearer caller identity is missing or invalid
 - **THEN** the guard returns 401
 
-#### Scenario: Legacy TOTP protection preserved when password_hash is NULL
+#### Scenario: Protected dashboard routes stay locked before initial setup
 
-- **WHEN** `password_hash` is NULL and `totp_required_on_login` is true
+- **WHEN** `password_hash` is NULL
 - **AND** no session cookie is present
 - **THEN** the guard returns 401
 
-#### Scenario: TOTP-only session accepted when password is not configured
+#### Scenario: Migration-inconsistent TOTP-only session remains blocked
 
 - **WHEN** `password_hash` is NULL and `totp_required_on_login` is true
 - **AND** session has `password_verified=false` and `totp_verified=true`
-- **THEN** the guard allows the request
+- **THEN** the guard still returns 401
 
-#### Scenario: TOTP verification required even with password session
+#### Scenario: Migration-inconsistent partial session remains blocked
 
 - **WHEN** `password_hash` is NULL and `totp_required_on_login` is true
 - **AND** session has `password_verified=true` but `totp_verified=false`
-- **THEN** the guard returns 401 with `totp_required` indication
+- **THEN** the guard returns 401
 
 ### Requirement: Session state endpoint
 
-The system SHALL expose `GET /api/dashboard-auth/session` returning the current authentication state including `password_required` (whether a password is configured), `authenticated` (whether the session is fully valid), `totp_required_on_login`, and `totp_configured`.
+The system SHALL expose `GET /api/dashboard-auth/session` returning the current authentication state including `setup_required` (whether initial password bootstrap is still required), `password_required` (whether a password is configured), `authenticated` (whether the session is fully valid), `totp_required_on_login`, and `totp_configured`.
 
 #### Scenario: No password configured
 
 - **WHEN** `password_hash` is NULL
-- **THEN** the response contains `{ "passwordRequired": false, "authenticated": true, "totpRequiredOnLogin": false, "totpConfigured": false }`
+- **THEN** the response contains `{ "setupRequired": true, "passwordRequired": false, "authenticated": false, "totpRequiredOnLogin": false, "totpConfigured": false }`
 
 #### Scenario: Password set, not logged in
 
 - **WHEN** `password_hash` is set and no valid session cookie exists
-- **THEN** the response contains `{ "passwordRequired": true, "authenticated": false, ... }`
+- **THEN** the response contains `{ "setupRequired": false, "passwordRequired": true, "authenticated": false, ... }`
 
 #### Scenario: Logged in, TOTP pending
 
 - **WHEN** session has `pw=true, tv=false` and `totp_required_on_login` is true
-- **THEN** the response contains `{ "passwordRequired": true, "authenticated": false, "totpRequiredOnLogin": true, "totpConfigured": true }`
+- **THEN** the response contains `{ "setupRequired": false, "passwordRequired": true, "authenticated": false, "totpRequiredOnLogin": true, "totpConfigured": true }`
 
 ### Requirement: TOTP setup requires password session
 
@@ -215,20 +215,19 @@ The system SHALL rate-limit failed password login attempts using the existing `T
 
 ### Requirement: Frontend login gate
 
-The SPA SHALL check `GET /api/dashboard-auth/session` on load. When `passwordRequired` is true and `authenticated` is false, the SPA MUST display only the login form (password input, then conditional TOTP input). Dashboard, accounts, and settings tabs MUST be hidden until authenticated. The TOTP input MUST use an HTML dialog, not `window.prompt()`.
+The SPA SHALL check `GET /api/dashboard-auth/session` on load. The SPA MUST expose `/login` as the public authentication route. When `setupRequired` is true, the SPA MUST display only the initial password setup form. When `passwordRequired` is true and `authenticated` is false, the SPA MUST display only the login form (password input, then conditional TOTP input). Dashboard, accounts, and settings tabs MUST be hidden until authenticated. The TOTP input MUST use an HTML dialog, not `window.prompt()`.
 
 #### Scenario: SPA loads with password required
 
-- **WHEN** the SPA loads and the session endpoint returns `passwordRequired: true, authenticated: false`
-- **THEN** only the login form is rendered; no dashboard data is visible
+- **WHEN** the SPA loads and the session endpoint returns `setupRequired: false, passwordRequired: true, authenticated: false`
+- **THEN** the user is routed to `/login` and only the login form is rendered; no dashboard data is visible
 
 #### Scenario: Password login then TOTP required
 
 - **WHEN** the user submits a valid password and `totpRequiredOnLogin` is true
 - **THEN** the SPA shows an HTML TOTP input dialog; after valid code submission, the full UI is shown
 
-#### Scenario: No password configured
+#### Scenario: Initial bootstrap required
 
-- **WHEN** the SPA loads and the session endpoint returns `passwordRequired: false`
-- **THEN** the full dashboard UI is shown immediately
-
+- **WHEN** the SPA loads and the session endpoint returns `setupRequired: true, passwordRequired: false`
+- **THEN** the user is routed to `/login` and only the password setup form is shown

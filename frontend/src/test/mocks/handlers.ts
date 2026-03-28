@@ -473,6 +473,7 @@ export const handlers = [
   http.post("/api/dashboard-auth/password/setup", () => {
     state.authSession = createDashboardAuthSession({
       authenticated: true,
+      setupRequired: false,
       passwordRequired: true,
       totpRequiredOnLogin: false,
       totpConfigured: state.authSession.totpConfigured,
@@ -495,6 +496,7 @@ export const handlers = [
   http.delete("/api/dashboard-auth/password", () => {
     state.authSession = createDashboardAuthSession({
       authenticated: false,
+      setupRequired: true,
       passwordRequired: false,
       totpRequiredOnLogin: false,
       totpConfigured: false,

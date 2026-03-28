@@ -26,6 +26,8 @@ from app.db.models import Base  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import create_app  # noqa: E402
 
+_TEST_ADMIN_PASSWORD = "password123"
+
 
 @pytest_asyncio.fixture
 async def app_instance():
@@ -62,12 +64,25 @@ async def db_setup():
     return True
 
 
-@pytest_asyncio.fixture
-async def async_client(app_instance):
+async def _create_async_client(app_instance):
     async with app_instance.router.lifespan_context(app_instance):
         transport = ASGITransport(app=app_instance)
         async with AsyncClient(transport=transport, base_url="http://testserver") as client:
             yield client
+
+
+@pytest_asyncio.fixture
+async def anonymous_client(app_instance):
+    async for client in _create_async_client(app_instance):
+        yield client
+
+
+@pytest_asyncio.fixture
+async def async_client(app_instance):
+    async for client in _create_async_client(app_instance):
+        setup = await client.post("/api/dashboard-auth/password/setup", json={"password": _TEST_ADMIN_PASSWORD})
+        assert setup.status_code == 200
+        yield client
 
 
 @pytest.fixture(autouse=True)

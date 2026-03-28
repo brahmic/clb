@@ -5,6 +5,7 @@ from app.modules.shared.schemas import DashboardModel
 
 class DashboardAuthSessionResponse(DashboardModel):
     authenticated: bool
+    setup_required: bool
     password_required: bool
     totp_required_on_login: bool
     totp_configured: bool

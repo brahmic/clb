@@ -6,6 +6,7 @@ describe("AuthSessionSchema", () => {
   it("parses valid auth session payload", () => {
     const parsed = AuthSessionSchema.parse({
       authenticated: true,
+      setupRequired: false,
       passwordRequired: true,
       totpRequiredOnLogin: false,
       totpConfigured: true,
@@ -13,6 +14,7 @@ describe("AuthSessionSchema", () => {
 
     expect(parsed).toEqual({
       authenticated: true,
+      setupRequired: false,
       passwordRequired: true,
       totpRequiredOnLogin: false,
       totpConfigured: true,
@@ -22,6 +24,7 @@ describe("AuthSessionSchema", () => {
   it("rejects missing required fields", () => {
     const result = AuthSessionSchema.safeParse({
       authenticated: true,
+      setupRequired: false,
       passwordRequired: false,
       totpRequiredOnLogin: false,
     });

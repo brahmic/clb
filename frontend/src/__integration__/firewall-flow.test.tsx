@@ -16,6 +16,7 @@ describe("firewall flow integration", () => {
       http.get("/api/dashboard-auth/session", () =>
         HttpResponse.json({
           authenticated: true,
+          setupRequired: false,
           passwordRequired: true,
           totpRequiredOnLogin: false,
           totpConfigured: true,

@@ -1,5 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { AuthGate } from "@/features/auth/components/auth-gate";
 import { useAuthStore } from "@/features/auth/hooks/use-auth";
@@ -10,6 +11,7 @@ function setAuthState(
   useAuthStore.setState({
     initialized: true,
     loading: false,
+    setupRequired: false,
     passwordRequired: true,
     authenticated: false,
     totpRequiredOnLogin: false,
@@ -20,67 +22,78 @@ function setAuthState(
 
 describe("AuthGate", () => {
   beforeEach(() => {
-    setAuthState({
-      refreshSession: vi.fn().mockResolvedValue(undefined),
-    });
+    setAuthState({});
   });
 
-  it("shows login form when unauthenticated", async () => {
-    const refreshSession = vi.fn().mockResolvedValue(undefined);
+  it("redirects to login when unauthenticated", () => {
     setAuthState({
-      refreshSession,
       passwordRequired: true,
       authenticated: false,
       totpRequiredOnLogin: false,
     });
 
     render(
-      <AuthGate>
-        <div>Protected content</div>
-      </AuthGate>,
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Routes>
+          <Route
+            path="/dashboard"
+            element={
+              <AuthGate>
+                <div>Protected content</div>
+              </AuthGate>
+            }
+          />
+          <Route path="/login" element={<div>Login route</div>} />
+        </Routes>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText("Sign in")).toBeInTheDocument();
+    expect(screen.getByText("Login route")).toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
-    await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
   });
 
-  it("shows children when authenticated", async () => {
-    const refreshSession = vi.fn().mockResolvedValue(undefined);
+  it("shows children when authenticated", () => {
     setAuthState({
-      refreshSession,
       passwordRequired: true,
       authenticated: true,
       totpRequiredOnLogin: false,
     });
 
     render(
-      <AuthGate>
-        <div>Protected content</div>
-      </AuthGate>,
+      <MemoryRouter>
+        <AuthGate>
+          <div>Protected content</div>
+        </AuthGate>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Protected content")).toBeInTheDocument();
-    await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
   });
 
-  it("shows totp dialog when verification is pending", async () => {
-    const refreshSession = vi.fn().mockResolvedValue(undefined);
+  it("redirects setup-required sessions to login", () => {
     setAuthState({
-      refreshSession,
-      passwordRequired: true,
+      setupRequired: true,
+      passwordRequired: false,
       authenticated: false,
-      totpRequiredOnLogin: true,
+      totpRequiredOnLogin: false,
     });
 
     render(
-      <AuthGate>
-        <div>Protected content</div>
-      </AuthGate>,
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Routes>
+          <Route
+            path="/dashboard"
+            element={
+              <AuthGate>
+                <div>Protected content</div>
+              </AuthGate>
+            }
+          />
+          <Route path="/login" element={<div>Login route</div>} />
+        </Routes>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText("Two-factor verification")).toBeInTheDocument();
-    expect(screen.queryByText("Dashboard Login")).not.toBeInTheDocument();
-    await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Login route")).toBeInTheDocument();
   });
 });

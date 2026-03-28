@@ -35,14 +35,50 @@ async def test_api_not_found_returns_dashboard_payload(async_client):
 
 
 @pytest.mark.asyncio
-async def test_spa_route_path_returns_index_html(async_client, tmp_path):
+async def test_spa_route_path_returns_index_html(async_client):
     index = _STATIC_DIR / "index.html"
     created = not index.exists()
     if created:
         index.parent.mkdir(parents=True, exist_ok=True)
         index.write_text("<!doctype html><html></html>")
     try:
-        response = await async_client.get("/dashboard/settings")
+        response = await async_client.get("/dashboard/settings", headers={"accept": "text/html"})
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/html")
+    finally:
+        if created:
+            index.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_spa_route_redirects_to_login_without_session(anonymous_client):
+    index = _STATIC_DIR / "index.html"
+    created = not index.exists()
+    if created:
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text("<!doctype html><html></html>")
+    try:
+        response = await anonymous_client.get(
+            "/dashboard/settings",
+            headers={"accept": "text/html"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 307
+        assert response.headers["location"] == "/login"
+    finally:
+        if created:
+            index.unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_login_route_returns_index_html_without_session(anonymous_client):
+    index = _STATIC_DIR / "index.html"
+    created = not index.exists()
+    if created:
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text("<!doctype html><html></html>")
+    try:
+        response = await anonymous_client.get("/login", headers={"accept": "text/html"})
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/html")
     finally:

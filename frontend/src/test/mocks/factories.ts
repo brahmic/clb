@@ -269,6 +269,7 @@ export function createDashboardAuthSession(
 ): DashboardAuthSession {
   return AuthSessionSchema.parse({
     authenticated: true,
+    setupRequired: false,
     passwordRequired: true,
     totpRequiredOnLogin: false,
     totpConfigured: true,

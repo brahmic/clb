@@ -34,6 +34,27 @@ describe("LoginForm", () => {
     expect(login).toHaveBeenCalledWith("secret-pass");
   });
 
+  it("submits password setup in setup mode", async () => {
+    const user = userEvent.setup();
+    const clearError = vi.fn();
+    const setupPassword = vi.fn().mockResolvedValue(undefined);
+
+    useAuthStore.setState({
+      clearError,
+      setupPassword,
+      loading: false,
+      error: null,
+    });
+
+    render(<LoginForm mode="setup" />);
+
+    await user.type(screen.getByLabelText("Password"), "secret-pass");
+    await user.click(screen.getByRole("button", { name: "Set Password" }));
+
+    expect(clearError).toHaveBeenCalledTimes(1);
+    expect(setupPassword).toHaveBeenCalledWith("secret-pass");
+  });
+
   it("shows error message when present", () => {
     useAuthStore.setState({
       error: "Invalid credentials",
@@ -50,8 +71,8 @@ describe("LoginForm", () => {
       error: null,
     });
 
-    render(<LoginForm />);
+    render(<LoginForm mode="setup" />);
     expect(screen.getByLabelText("Password")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Sign In" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Set Password" })).toBeDisabled();
   });
 });

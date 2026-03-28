@@ -19,6 +19,23 @@ logger = logging.getLogger(__name__)
 _bearer = HTTPBearer(description="API key (e.g. sk-clb-…)", auto_error=False)
 
 
+def has_valid_dashboard_session(
+    session_id: str | None,
+    *,
+    password_hash: str | None,
+    totp_required_on_login: bool,
+) -> bool:
+    if password_hash is None:
+        return False
+
+    state = get_dashboard_session_store().get(session_id)
+    if state is None or not state.password_verified:
+        return False
+    if totp_required_on_login and not state.totp_verified:
+        return False
+    return True
+
+
 # --- Error format markers ---
 
 
@@ -62,24 +79,23 @@ async def validate_proxy_api_key_authorization(authorization: str | None) -> Api
 
 async def validate_dashboard_session(request: Request) -> None:
     settings = await get_settings_cache().get()
-    requires_auth = settings.password_hash is not None or settings.totp_required_on_login
-    if not requires_auth:
-        return
-
-    if settings.password_hash is None and settings.totp_required_on_login:
+    if settings.password_hash is None:
         logger.warning(
             "dashboard_auth_migration_inconsistency password_hash is NULL"
-            " while totp_required_on_login=true metric=dashboard_auth_migration_inconsistency"
+            " while dashboard access was requested metric=dashboard_auth_migration_inconsistency"
         )
+        raise DashboardAuthError("Authentication is required")
 
     session_id = request.cookies.get(DASHBOARD_SESSION_COOKIE)
-    state = get_dashboard_session_store().get(session_id)
-    if state is None:
+    if not has_valid_dashboard_session(
+        session_id,
+        password_hash=settings.password_hash,
+        totp_required_on_login=settings.totp_required_on_login,
+    ):
+        state = get_dashboard_session_store().get(session_id)
+        if settings.totp_required_on_login and state is not None and state.password_verified and not state.totp_verified:
+            raise DashboardAuthError("TOTP verification is required for dashboard access", code="totp_required")
         raise DashboardAuthError("Authentication is required")
-    if settings.password_hash is not None and not state.password_verified:
-        raise DashboardAuthError("Authentication is required")
-    if settings.totp_required_on_login and not state.totp_verified:
-        raise DashboardAuthError("TOTP verification is required for dashboard access", code="totp_required")
 
 
 # --- Codex usage caller identity auth ---

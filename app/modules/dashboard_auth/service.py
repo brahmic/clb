@@ -187,21 +187,25 @@ class DashboardAuthService:
     async def get_session_state(self, session_id: str | None) -> DashboardAuthSessionResponse:
         settings = await self._repository.get_settings()
         password_required = settings.password_hash is not None
+        setup_required = not password_required
         totp_required = password_required and settings.totp_required_on_login
-        totp_configured = settings.totp_secret_encrypted is not None
+        totp_configured = password_required and settings.totp_secret_encrypted is not None
         state = self._session_store.get(session_id) if password_required else None
         password_authenticated = bool(state and state.password_verified)
-        if not password_required:
-            authenticated = True
+        if setup_required:
+            authenticated = False
         elif totp_required:
             authenticated = bool(state and state.password_verified and state.totp_verified)
         else:
             authenticated = password_authenticated
 
-        # Surface the TOTP prompt only for password-authenticated sessions.
-        totp_required_on_login = bool(totp_required and password_authenticated)
+        # Surface the TOTP prompt only for password-authenticated sessions awaiting step-up.
+        totp_required_on_login = bool(
+            totp_required and state and state.password_verified and not state.totp_verified
+        )
         return DashboardAuthSessionResponse(
             authenticated=authenticated,
+            setup_required=setup_required,
             password_required=password_required,
             totp_required_on_login=totp_required_on_login,
             totp_configured=totp_configured,

@@ -3,9 +3,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse
 
+from app.core.auth.dependencies import has_valid_dashboard_session
 from app.core.clients.http import close_http_client, init_http_client
 from app.core.config.settings_cache import get_settings_cache
 from app.core.handlers import add_exception_handlers
@@ -32,6 +33,7 @@ from app.modules.sticky_sessions import api as sticky_sessions_api
 from app.modules.sticky_sessions.cleanup_scheduler import build_sticky_session_cleanup_scheduler
 from app.modules.usage import api as usage_api
 from app.modules.usage.additional_quota_keys import reload_additional_quota_registry
+from app.modules.dashboard_auth.service import DASHBOARD_SESSION_COOKIE
 
 
 @asynccontextmanager
@@ -103,9 +105,29 @@ def create_app() -> FastAPI:
         last_segment = path.rsplit("/", maxsplit=1)[-1]
         return "." in last_segment
 
+    def _is_html_navigation(request: Request) -> bool:
+        accept = request.headers.get("accept", "")
+        return "text/html" in accept
+
+    async def _requires_login_redirect(request: Request, path: str) -> bool:
+        normalized = path.lstrip("/")
+        if normalized == "login":
+            return False
+        if normalized and _is_static_asset_path(normalized):
+            return False
+        if not _is_html_navigation(request):
+            return False
+
+        settings = await get_settings_cache().get()
+        return not has_valid_dashboard_session(
+            request.cookies.get(DASHBOARD_SESSION_COOKIE),
+            password_hash=settings.password_hash,
+            totp_required_on_login=settings.totp_required_on_login,
+        )
+
     @app.get("/", include_in_schema=False)
     @app.get("/{path:path}", include_in_schema=False)
-    async def spa_fallback(path: str = ""):
+    async def spa_fallback(request: Request, path: str = ""):
         normalized = path.lstrip("/")
         if normalized and any(
             normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in excluded_prefixes
@@ -121,6 +143,9 @@ def create_app() -> FastAPI:
 
         if not index_html.is_file():
             raise HTTPException(status_code=503, detail=frontend_build_hint)
+
+        if await _requires_login_redirect(request, normalized):
+            return RedirectResponse("/login", status_code=307)
 
         return FileResponse(index_html, media_type="text/html")
 
