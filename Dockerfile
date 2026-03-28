@@ -4,8 +4,7 @@ FROM oven/bun:1.3.7-alpine AS frontend-build
 WORKDIR /app/frontend
 
 COPY frontend/package.json frontend/bun.lock ./
-RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+RUN rm -rf /root/.bun/install/cache && bun install --frozen-lockfile
 
 COPY frontend ./
 RUN bun run build

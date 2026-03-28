@@ -50,7 +50,7 @@ describe("PasswordSettings", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Password"), "new-password-1");
-    await user.click(screen.getAllByRole("button", { name: "Set password" }).find((btn) => btn.getAttribute("type") === "submit")!);
+    await user.click(screen.getAllByRole("button", { name: "Set password" }).find((btn: HTMLElement) => btn.getAttribute("type") === "submit")!);
     expect(setupPassword).toHaveBeenCalledWith({ password: "new-password-1" });
   });
 
@@ -96,7 +96,7 @@ describe("PasswordSettings", () => {
 
     await user.click(screen.getByRole("button", { name: "Set password" }));
     await user.type(screen.getByLabelText("Password"), "new-password-1");
-    await user.click(screen.getAllByRole("button", { name: "Set password" }).find((btn) => btn.getAttribute("type") === "submit")!);
+    await user.click(screen.getAllByRole("button", { name: "Set password" }).find((btn: HTMLElement) => btn.getAttribute("type") === "submit")!);
 
     expect(await screen.findByText("setup failed")).toBeInTheDocument();
   });

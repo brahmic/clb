@@ -44,7 +44,7 @@ export function AppHeader({
             <CodexLogo size={20} className="text-primary" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold tracking-tight">Codex LB</p>
+            <p className="truncate text-sm font-semibold tracking-tight">Codex Modex</p>
           </div>
         </div>
 
@@ -106,7 +106,7 @@ export function AppHeader({
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
                     <CodexLogo size={16} className="text-primary" />
                   </div>
-                  <span className="text-sm font-semibold">Codex LB</span>
+                  <span className="text-sm font-semibold">Codex Modex</span>
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-0.5 px-4 pt-2">

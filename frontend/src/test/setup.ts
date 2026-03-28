@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, configure } from "@testing-library/react";
+import { configure } from "@testing-library/dom";
+import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 
 import { resetMockState } from "@/test/mocks/handlers";

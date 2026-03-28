@@ -47,7 +47,7 @@ export function AuthGate({ children }: PropsWithChildren) {
               <CodexLogo size={28} className="text-primary" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">Codex LB</h1>
+              <h1 className="text-xl font-semibold tracking-tight">Codex Modex</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">API Load Balancer</p>
             </div>
           </div>
