@@ -88,7 +88,11 @@ async def async_client(app_instance):
 @pytest.fixture(autouse=True)
 def temp_key_file(monkeypatch):
     key_path = TEST_DB_DIR / f"encryption-{uuid4().hex}.key"
+    image_sessions_dir = TEST_DB_DIR / f"chatgpt-image-sessions-{uuid4().hex}"
+    image_credentials_dir = TEST_DB_DIR / f"chatgpt-image-credentials-{uuid4().hex}"
     monkeypatch.setenv("CODEX_LB_ENCRYPTION_KEY_FILE", str(key_path))
+    monkeypatch.setenv("CODEX_LB_CHATGPT_IMAGE_SESSIONS_DIR", str(image_sessions_dir))
+    monkeypatch.setenv("CODEX_LB_CHATGPT_IMAGE_CREDENTIALS_DIR", str(image_credentials_dir))
     from app.core.config.settings import get_settings
 
     get_settings.cache_clear()

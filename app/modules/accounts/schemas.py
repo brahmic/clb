@@ -41,6 +41,18 @@ class AccountAuthStatus(DashboardModel):
     id_token: AccountTokenStatus | None = None
 
 
+class AccountChatGPTImageSessionStatus(DashboardModel):
+    status: str = Field(pattern=r"^(disconnected|ready|error)$")
+    last_validated_at: datetime | None = None
+    last_error: str | None = None
+
+
+class AccountChatGPTImageCredentialsStatus(DashboardModel):
+    configured: bool = False
+    login_email: str | None = None
+    updated_at: datetime | None = None
+
+
 class AccountAdditionalWindow(DashboardModel):
     used_percent: float
     reset_at: int | None = None
@@ -78,6 +90,8 @@ class AccountSummary(DashboardModel):
     additional_quotas: list[AccountAdditionalQuota] = Field(default_factory=list)
     deactivation_reason: str | None = None
     auth: AccountAuthStatus | None = None
+    chatgpt_image_session: AccountChatGPTImageSessionStatus | None = None
+    chatgpt_image_credentials: AccountChatGPTImageCredentialsStatus | None = None
 
 
 class AccountsResponse(DashboardModel):
@@ -107,6 +121,25 @@ class AccountConnectionResponse(DashboardModel):
     account_id: str
     mode: str = Field(pattern=r"^(inherit_default|direct|proxy_profile)$")
     proxy_profile_id: str | None = None
+
+
+class AccountChatGPTImageSessionResponse(DashboardModel):
+    account_id: str
+    status: str = Field(pattern=r"^(disconnected|ready|error)$")
+    last_validated_at: datetime | None = None
+    last_error: str | None = None
+
+
+class AccountChatGPTImageCredentialsUpdateRequest(DashboardModel):
+    login_email: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+class AccountChatGPTImageCredentialsResponse(DashboardModel):
+    account_id: str
+    configured: bool
+    login_email: str | None = None
+    updated_at: datetime | None = None
 
 
 class AccountTrendsResponse(DashboardModel):

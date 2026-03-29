@@ -12,6 +12,8 @@ from app.db.models import Account, UsageHistory
 from app.modules.accounts.schemas import (
     AccountAdditionalQuota,
     AccountAuthStatus,
+    AccountChatGPTImageCredentialsStatus,
+    AccountChatGPTImageSessionStatus,
     AccountRequestUsage,
     AccountSummary,
     AccountTokenStatus,
@@ -28,6 +30,8 @@ def build_account_summaries(
     secondary_usage: dict[str, UsageHistory],
     request_usage_by_account: dict[str, AccountRequestUsage] | None = None,
     additional_quotas_by_account: dict[str, list[AccountAdditionalQuota]] | None = None,
+    image_sessions_by_account: dict[str, AccountChatGPTImageSessionStatus] | None = None,
+    image_credentials_by_account: dict[str, AccountChatGPTImageCredentialsStatus] | None = None,
     encryptor: TokenEncryptor,
     include_auth: bool = True,
 ) -> list[AccountSummary]:
@@ -38,6 +42,8 @@ def build_account_summaries(
             secondary_usage.get(account.id),
             request_usage_by_account.get(account.id) if request_usage_by_account else None,
             additional_quotas_by_account.get(account.id) if additional_quotas_by_account else None,
+            image_sessions_by_account.get(account.id) if image_sessions_by_account else None,
+            image_credentials_by_account.get(account.id) if image_credentials_by_account else None,
             encryptor,
             include_auth=include_auth,
         )
@@ -51,6 +57,8 @@ def _account_to_summary(
     secondary_usage: UsageHistory | None,
     request_usage: AccountRequestUsage | None,
     additional_quotas: list[AccountAdditionalQuota] | None,
+    image_session: AccountChatGPTImageSessionStatus | None,
+    image_credentials: AccountChatGPTImageCredentialsStatus | None,
     encryptor: TokenEncryptor,
     include_auth: bool = True,
 ) -> AccountSummary:
@@ -119,6 +127,8 @@ def _account_to_summary(
         additional_quotas=additional_quotas or [],
         deactivation_reason=account.deactivation_reason,
         auth=auth_status,
+        chatgpt_image_session=image_session,
+        chatgpt_image_credentials=image_credentials,
     )
 
 

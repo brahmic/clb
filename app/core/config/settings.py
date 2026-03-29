@@ -39,6 +39,8 @@ def _default_http_bridge_instance_id() -> str:
 DEFAULT_HOME_DIR = _default_home_dir()
 DEFAULT_DB_PATH = DEFAULT_HOME_DIR / "store.db"
 DEFAULT_ENCRYPTION_KEY_FILE = DEFAULT_HOME_DIR / "encryption.key"
+DEFAULT_CHATGPT_IMAGE_SESSIONS_DIR = DEFAULT_HOME_DIR / "chatgpt-image-sessions"
+DEFAULT_CHATGPT_IMAGE_CREDENTIALS_DIR = DEFAULT_HOME_DIR / "chatgpt-image-credentials"
 
 
 class Settings(BaseSettings):
@@ -95,6 +97,10 @@ class Settings(BaseSettings):
     sticky_session_cleanup_enabled: bool = True
     sticky_session_cleanup_interval_seconds: int = Field(default=300, gt=0)
     encryption_key_file: Path = DEFAULT_ENCRYPTION_KEY_FILE
+    chatgpt_image_sessions_dir: Path = DEFAULT_CHATGPT_IMAGE_SESSIONS_DIR
+    chatgpt_image_credentials_dir: Path = DEFAULT_CHATGPT_IMAGE_CREDENTIALS_DIR
+    image_worker_base_url: str = "http://chatgpt-image-worker:3091"
+    image_worker_token: str = "codex-lb-image-worker-dev-token"
     database_migrations_fail_fast: bool = True
     log_proxy_request_shape: bool = False
     log_proxy_request_shape_raw_cache_key: bool = False
@@ -126,7 +132,12 @@ class Settings(BaseSettings):
                     return f"{prefix}{Path(path).expanduser()}"
         return value
 
-    @field_validator("encryption_key_file", mode="before")
+    @field_validator(
+        "encryption_key_file",
+        "chatgpt_image_sessions_dir",
+        "chatgpt_image_credentials_dir",
+        mode="before",
+    )
     @classmethod
     def _expand_encryption_key_file(cls, value: str | Path) -> Path:
         if isinstance(value, Path):

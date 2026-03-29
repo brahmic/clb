@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi import Body
 
 from app.core.auth.dependencies import set_dashboard_error_format, validate_dashboard_session
 from app.core.exceptions import DashboardBadRequestError, DashboardConflictError, DashboardNotFoundError
-from app.dependencies import AccountsContext, get_accounts_context
+from app.dependencies import (
+    AccountsContext,
+    get_accounts_context,
+    get_chatgpt_image_sessions_service,
+)
 from app.modules.accounts.repository import AccountIdentityConflictError
 from app.modules.accounts.schemas import (
+    AccountChatGPTImageCredentialsResponse,
+    AccountChatGPTImageCredentialsUpdateRequest,
+    AccountChatGPTImageSessionResponse,
     AccountConnectionResponse,
     AccountDeleteResponse,
     AccountImportResponse,
@@ -16,6 +23,8 @@ from app.modules.accounts.schemas import (
     AccountsResponse,
     AccountTrendsResponse,
 )
+from app.modules.chatgpt_image_sessions.service import ChatGPTImageSessionsService, ImageSessionUnavailableError
+from app.modules.proxy_profiles.runtime import ProxyProfileResolutionError, resolve_account_proxy_connection_from_db
 from app.modules.proxy_profiles.schemas import AccountConnectionUpdateRequest
 from app.modules.proxy_profiles.repository import ProxyProfilesRepository
 from app.modules.accounts.service import InvalidAuthJsonError
@@ -118,3 +127,80 @@ async def update_account_connection(
     if not updated:
         raise DashboardNotFoundError("Account not found", code="account_not_found")
     return updated
+
+
+@router.get("/{account_id}/chatgpt-image-session", response_model=AccountChatGPTImageSessionResponse)
+async def get_account_chatgpt_image_session(
+    account_id: str,
+    request: Request,
+    context: AccountsContext = Depends(get_accounts_context),
+) -> AccountChatGPTImageSessionResponse:
+    account = await context.repository.get_by_id(account_id)
+    if account is None:
+        raise DashboardNotFoundError("Account not found", code="account_not_found")
+    status = get_chatgpt_image_sessions_service(request).status_for_account(account_id)
+    return AccountChatGPTImageSessionResponse(
+        account_id=account_id,
+        status=status.status,
+        last_validated_at=status.last_validated_at,
+        last_error=status.last_error,
+    )
+
+
+@router.get("/{account_id}/chatgpt-image-credentials", response_model=AccountChatGPTImageCredentialsResponse)
+async def get_account_chatgpt_image_credentials(
+    account_id: str,
+    context: AccountsContext = Depends(get_accounts_context),
+) -> AccountChatGPTImageCredentialsResponse:
+    response = await context.service.get_chatgpt_image_credentials(account_id)
+    if response is None:
+        raise DashboardNotFoundError("Account not found", code="account_not_found")
+    return response
+
+
+@router.put("/{account_id}/chatgpt-image-credentials", response_model=AccountChatGPTImageCredentialsResponse)
+async def update_account_chatgpt_image_credentials(
+    account_id: str,
+    payload: AccountChatGPTImageCredentialsUpdateRequest = Body(...),
+    context: AccountsContext = Depends(get_accounts_context),
+) -> AccountChatGPTImageCredentialsResponse:
+    response = await context.service.update_chatgpt_image_credentials(
+        account_id,
+        login_email=payload.login_email,
+        password=payload.password,
+    )
+    if response is None:
+        raise DashboardNotFoundError("Account not found", code="account_not_found")
+    return response
+
+
+@router.delete("/{account_id}/chatgpt-image-credentials", response_model=AccountChatGPTImageCredentialsResponse)
+async def delete_account_chatgpt_image_credentials(
+    account_id: str,
+    context: AccountsContext = Depends(get_accounts_context),
+) -> AccountChatGPTImageCredentialsResponse:
+    response = await context.service.clear_chatgpt_image_credentials(account_id)
+    if response is None:
+        raise DashboardNotFoundError("Account not found", code="account_not_found")
+    return response
+
+
+@router.delete("/{account_id}/chatgpt-image-session", response_model=AccountChatGPTImageSessionResponse)
+async def disconnect_account_chatgpt_image_session(
+    account_id: str,
+    context: AccountsContext = Depends(get_accounts_context),
+    image_sessions: ChatGPTImageSessionsService = Depends(get_chatgpt_image_sessions_service),
+) -> AccountChatGPTImageSessionResponse:
+    account = await context.repository.get_by_id(account_id)
+    if account is None:
+        raise DashboardNotFoundError("Account not found", code="account_not_found")
+    try:
+        status = await image_sessions.disconnect_account(account_id=account_id)
+    except ImageSessionUnavailableError as exc:
+        raise DashboardBadRequestError(str(exc), code=exc.code) from exc
+    return AccountChatGPTImageSessionResponse(
+        account_id=account_id,
+        status=status.status,
+        last_validated_at=status.last_validated_at,
+        last_error=status.last_error,
+    )

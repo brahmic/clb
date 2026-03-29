@@ -32,6 +32,10 @@ The application SHALL use React Router v6 for client-side routing with six route
 - **WHEN** a user clicks the "Chat" tab from another page
 - **THEN** the URL changes to `/chat` without full page reload and the Chat page renders
 
+#### Scenario: Chat page supports image-thread mode
+- **WHEN** an authenticated user opens `/chat`
+- **THEN** the page offers both normal chat and explicit `ChatGPT Images` thread mode without leaving the route
+
 #### Scenario: Unauthenticated browser navigation to protected route
 - **WHEN** a browser requests `/dashboard` without a valid dashboard session
 - **THEN** FastAPI redirects the HTML navigation request to `/login`

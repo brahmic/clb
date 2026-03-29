@@ -18,16 +18,24 @@ from app.core.plan_types import coerce_account_plan_type
 from app.core.utils.time import naive_utc_to_epoch, to_utc_naive, utcnow
 from app.db.models import Account, AccountStatus
 from app.modules.accounts.mappers import build_account_summaries, build_account_usage_trends
+from app.modules.accounts.image_credentials_store import (
+    AccountImageCredentialsStore,
+    ChatGPTImageCredentialsStatus,
+)
 from app.modules.accounts.repository import AccountsRepository
 from app.modules.accounts.schemas import (
     AccountAdditionalQuota,
     AccountAdditionalWindow,
+    AccountChatGPTImageCredentialsResponse,
+    AccountChatGPTImageCredentialsStatus,
+    AccountChatGPTImageSessionStatus,
     AccountConnectionResponse,
     AccountImportResponse,
     AccountRequestUsage,
     AccountSummary,
     AccountTrendsResponse,
 )
+from app.modules.accounts.image_session_store import AccountImageSessionStore
 from app.modules.usage.additional_quota_keys import get_additional_display_label_for_quota_key
 from app.modules.usage.repository import AdditionalUsageRepository, UsageRepository
 from app.modules.usage.updater import AdditionalUsageRepositoryPort, UsageUpdater
@@ -46,12 +54,16 @@ class AccountsService:
         repo: AccountsRepository,
         usage_repo: UsageRepository | None = None,
         additional_usage_repo: AdditionalUsageRepository | AdditionalUsageRepositoryPort | None = None,
+        image_session_store: AccountImageSessionStore | None = None,
+        image_credentials_store: AccountImageCredentialsStore | None = None,
     ) -> None:
         self._repo = repo
         self._usage_repo = usage_repo
         self._additional_usage_repo = additional_usage_repo
         self._usage_updater = UsageUpdater(usage_repo, repo, additional_usage_repo) if usage_repo else None
         self._encryptor = TokenEncryptor()
+        self._image_session_store = image_session_store or AccountImageSessionStore()
+        self._image_credentials_store = image_credentials_store or AccountImageCredentialsStore()
 
     async def list_accounts(self) -> list[AccountSummary]:
         accounts = await self._repo.list_accounts()
@@ -72,6 +84,8 @@ class AccountsService:
             for account_id, row in request_usage_rows.items()
         }
         additional_quotas_by_account: dict[str, list[AccountAdditionalQuota]] = {}
+        image_sessions_by_account = self._image_session_store.statuses(account_ids)
+        image_credentials_by_account = self._image_credentials_store.statuses(account_ids)
         additional_usage_repo = cast(AdditionalUsageRepository | None, self._additional_usage_repo)
         if additional_usage_repo:
             quota_keys = await additional_usage_repo.list_quota_keys(account_ids=account_ids)
@@ -116,6 +130,22 @@ class AccountsService:
             secondary_usage=secondary_usage,
             request_usage_by_account=request_usage_by_account,
             additional_quotas_by_account=additional_quotas_by_account,
+            image_sessions_by_account={
+                account_id: AccountChatGPTImageSessionStatus(
+                    status=status.status,
+                    last_validated_at=status.last_validated_at,
+                    last_error=status.last_error,
+                )
+                for account_id, status in image_sessions_by_account.items()
+            },
+            image_credentials_by_account={
+                account_id: AccountChatGPTImageCredentialsStatus(
+                    configured=status.configured,
+                    login_email=status.login_email,
+                    updated_at=status.updated_at,
+                )
+                for account_id, status in image_credentials_by_account.items()
+            },
             encryptor=self._encryptor,
         )
 
@@ -207,3 +237,46 @@ class AccountsService:
             mode=mode,
             proxy_profile_id=proxy_profile_id,
         )
+
+    async def get_chatgpt_image_credentials(self, account_id: str) -> AccountChatGPTImageCredentialsResponse | None:
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        status = self._image_credentials_store.status(account_id)
+        return _to_image_credentials_response(account_id, status)
+
+    async def update_chatgpt_image_credentials(
+        self,
+        account_id: str,
+        *,
+        login_email: str,
+        password: str,
+    ) -> AccountChatGPTImageCredentialsResponse | None:
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        status = self._image_credentials_store.put(
+            account_id,
+            login_email=login_email,
+            password=password,
+        )
+        return _to_image_credentials_response(account_id, status)
+
+    async def clear_chatgpt_image_credentials(self, account_id: str) -> AccountChatGPTImageCredentialsResponse | None:
+        account = await self._repo.get_by_id(account_id)
+        if account is None:
+            return None
+        status = self._image_credentials_store.delete(account_id)
+        return _to_image_credentials_response(account_id, status)
+
+
+def _to_image_credentials_response(
+    account_id: str,
+    status: ChatGPTImageCredentialsStatus,
+) -> AccountChatGPTImageCredentialsResponse:
+    return AccountChatGPTImageCredentialsResponse(
+        account_id=account_id,
+        configured=status.configured,
+        login_email=status.login_email,
+        updated_at=status.updated_at,
+    )

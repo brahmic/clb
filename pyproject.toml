@@ -66,6 +66,9 @@ dev = [
     "ty>=0.0.12",
     "openai>=2.16.0",
 ]
+image-worker = [
+    "playwright>=1.52.0",
+]
 
 [tool.pytest.ini_options]
 addopts = "-ra"

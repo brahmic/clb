@@ -328,7 +328,6 @@ class ResponsesRequest(BaseModel):
     truncation: str | None = None
     prompt_cache_key: str | None = None
     text: ResponsesTextControls | None = None
-
     @field_validator("input")
     @classmethod
     def _validate_input_type(cls, value: JsonValue) -> JsonValue:
@@ -374,11 +373,6 @@ class ResponsesRequest(BaseModel):
         stripped = value.strip()
         return stripped or None
 
-    @field_validator("tools")
-    @classmethod
-    def _validate_tools(cls, value: list[JsonValue]) -> list[JsonValue]:
-        return validate_tool_types(value)
-
     @field_validator("tool_choice")
     @classmethod
     def _normalize_tool_choice_field(cls, value: JsonValue | None) -> JsonValue | None:
@@ -391,6 +385,11 @@ class ResponsesRequest(BaseModel):
             return None
         normalized = _normalize_service_tier_alias_value(value)
         return normalized if isinstance(normalized, str) else value
+
+    @field_validator("tools")
+    @classmethod
+    def _validate_tools(cls, value: list[JsonValue]) -> list[JsonValue]:
+        return validate_tool_types(value)
 
     @model_validator(mode="after")
     def _validate_conversation(self) -> "ResponsesRequest":
@@ -468,7 +467,6 @@ def _strip_unsupported_fields(payload: dict[str, JsonValue]) -> dict[str, JsonVa
     for key in _UNSUPPORTED_UPSTREAM_FIELDS:
         payload.pop(key, None)
     return payload
-
 
 def _canonicalize_tools(payload: dict[str, JsonValue]) -> None:
     tools = payload.get("tools")

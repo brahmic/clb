@@ -80,6 +80,16 @@ export function createAccountSummary(overrides: Partial<AccountSummary> = {}): A
       refresh: { state: "stored" },
       idToken: { state: "parsed" },
     },
+    chatgptImageSession: {
+      status: "disconnected",
+      lastValidatedAt: null,
+      lastError: null,
+    },
+    chatgptImageCredentials: {
+      configured: false,
+      loginEmail: null,
+      updatedAt: null,
+    },
     ...overrides,
   });
 }

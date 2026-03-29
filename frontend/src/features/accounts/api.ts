@@ -3,6 +3,9 @@ import { del, get, post, put } from "@/lib/api-client";
 import {
   AccountActionResponseSchema,
   AccountConnectionResponseSchema,
+  AccountChatGPTImageCredentialsResponseSchema,
+  AccountChatGPTImageCredentialsUpdateRequestSchema,
+  AccountChatGPTImageSessionResponseSchema,
   AccountConnectionUpdateRequestSchema,
   AccountImportResponseSchema,
   AccountsResponseSchema,
@@ -66,6 +69,43 @@ export function updateAccountConnection(accountId: string, payload: unknown) {
     `${ACCOUNTS_BASE_PATH}/${encodeURIComponent(accountId)}/connection`,
     AccountConnectionResponseSchema,
     { body: validated },
+  );
+}
+
+export function getAccountChatGPTImageSession(accountId: string) {
+  return get(
+    `${ACCOUNTS_BASE_PATH}/${encodeURIComponent(accountId)}/chatgpt-image-session`,
+    AccountChatGPTImageSessionResponseSchema,
+  );
+}
+
+export function getAccountChatGPTImageCredentials(accountId: string) {
+  return get(
+    `${ACCOUNTS_BASE_PATH}/${encodeURIComponent(accountId)}/chatgpt-image-credentials`,
+    AccountChatGPTImageCredentialsResponseSchema,
+  );
+}
+
+export function updateAccountChatGPTImageCredentials(accountId: string, payload: unknown) {
+  const validated = AccountChatGPTImageCredentialsUpdateRequestSchema.parse(payload);
+  return put(
+    `${ACCOUNTS_BASE_PATH}/${encodeURIComponent(accountId)}/chatgpt-image-credentials`,
+    AccountChatGPTImageCredentialsResponseSchema,
+    { body: validated },
+  );
+}
+
+export function deleteAccountChatGPTImageCredentials(accountId: string) {
+  return del(
+    `${ACCOUNTS_BASE_PATH}/${encodeURIComponent(accountId)}/chatgpt-image-credentials`,
+    AccountChatGPTImageCredentialsResponseSchema,
+  );
+}
+
+export function deleteAccountChatGPTImageSession(accountId: string) {
+  return del(
+    `${ACCOUNTS_BASE_PATH}/${encodeURIComponent(accountId)}/chatgpt-image-session`,
+    AccountChatGPTImageSessionResponseSchema,
   );
 }
 

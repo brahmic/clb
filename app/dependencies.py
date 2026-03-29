@@ -8,6 +8,8 @@ from fastapi import Depends, Request, WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_background_session, get_session
+from app.modules.accounts.image_session_store import AccountImageSessionStore
+from app.modules.accounts.image_credentials_store import AccountImageCredentialsStore
 from app.modules.accounts.repository import AccountsRepository
 from app.modules.accounts.service import AccountsService
 from app.modules.api_keys.repository import ApiKeysRepository
@@ -18,9 +20,12 @@ from app.modules.dashboard_auth.repository import DashboardAuthRepository
 from app.modules.dashboard_auth.service import DashboardAuthService, get_dashboard_session_store
 from app.modules.dashboard_chat.repository import DashboardChatRepository
 from app.modules.dashboard_chat.service import DashboardChatService
+from app.modules.dashboard_images.repository import DashboardImagesRepository
+from app.modules.dashboard_images.service import DashboardImagesService
 from app.modules.firewall.repository import FirewallRepository
 from app.modules.firewall.service import FirewallService
 from app.modules.oauth.service import OauthService
+from app.modules.chatgpt_image_sessions.service import ChatGPTImageSessionsService
 from app.modules.proxy.repo_bundle import ProxyRepositories
 from app.modules.proxy.service import ProxyService
 from app.modules.proxy_profiles.repository import ProxyProfilesRepository
@@ -71,6 +76,13 @@ class DashboardChatContext:
     session: AsyncSession
     repository: DashboardChatRepository
     service: DashboardChatService
+
+
+@dataclass(slots=True)
+class DashboardImagesContext:
+    session: AsyncSession
+    repository: DashboardImagesRepository
+    service: DashboardImagesService
 
 
 @dataclass(slots=True)
@@ -129,7 +141,13 @@ def get_accounts_context(
     repository = AccountsRepository(session)
     usage_repository = UsageRepository(session)
     additional_usage_repository = AdditionalUsageRepository(session)
-    service = AccountsService(repository, usage_repository, additional_usage_repository)
+    service = AccountsService(
+        repository,
+        usage_repository,
+        additional_usage_repository,
+        image_session_store=AccountImageSessionStore(),
+        image_credentials_store=AccountImageCredentialsStore(),
+    )
     return AccountsContext(
         session=session,
         repository=repository,
@@ -202,6 +220,35 @@ def get_dashboard_chat_context(
     repository = DashboardChatRepository(session)
     service = DashboardChatService(repository, get_proxy_service_for_app(request.app))
     return DashboardChatContext(session=session, repository=repository, service=service)
+
+
+def get_dashboard_images_context(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> DashboardImagesContext:
+    repository = DashboardImagesRepository(session)
+    service = DashboardImagesService(
+        repository,
+        _proxy_repo_context,
+        image_sessions_service=get_chatgpt_image_sessions_service_for_app(request.app),
+    )
+    return DashboardImagesContext(session=session, repository=repository, service=service)
+
+
+def get_chatgpt_image_sessions_service_for_app(app: object) -> ChatGPTImageSessionsService:
+    state = getattr(app, "state", None)
+    service = getattr(state, "chatgpt_image_sessions_service", None)
+    if not isinstance(service, ChatGPTImageSessionsService):
+        service = ChatGPTImageSessionsService(
+            session_store=AccountImageSessionStore(),
+            credentials_store=AccountImageCredentialsStore(),
+        )
+        setattr(state, "chatgpt_image_sessions_service", service)
+    return service
+
+
+def get_chatgpt_image_sessions_service(request: Request) -> ChatGPTImageSessionsService:
+    return get_chatgpt_image_sessions_service_for_app(request.app)
 
 
 def get_proxy_service_for_app(app: object) -> ProxyService:

@@ -4,16 +4,33 @@ import { ApiErrorResponseSchema } from "@/schemas/api";
 import {
   DashboardChatRequestSchema,
   DashboardChatStartedEventSchema,
+  DashboardImagesCompletedEventSchema,
+  DashboardImagesConversationRequestSchema,
+  DashboardImagesFailedEventSchema,
+  DashboardImagesProgressEventSchema,
+  DashboardImagesStartedEventSchema,
   type DashboardChatRequest,
   type DashboardChatStartedEvent,
+  type DashboardImagesCompletedEvent,
+  type DashboardImagesConversationRequest,
+  type DashboardImagesFailedEvent,
+  type DashboardImagesProgressEvent,
+  type DashboardImagesStartedEvent,
 } from "@/features/chat/schemas";
 
 type UnknownChatEvent = Record<string, unknown>;
-export type DashboardChatEvent = DashboardChatStartedEvent | UnknownChatEvent;
 
-type StreamDashboardChatOptions = {
+export type DashboardChatEvent = DashboardChatStartedEvent | UnknownChatEvent;
+export type DashboardImagesEvent =
+  | DashboardImagesStartedEvent
+  | DashboardImagesProgressEvent
+  | DashboardImagesCompletedEvent
+  | DashboardImagesFailedEvent
+  | UnknownChatEvent;
+
+type StreamOptions<TEvent> = {
   signal?: AbortSignal;
-  onEvent: (event: DashboardChatEvent) => void;
+  onEvent: (event: TEvent) => void;
 };
 
 function parseSseBlocks(buffer: string): { blocks: string[]; remainder: string } {
@@ -30,7 +47,10 @@ function parseSseBlocks(buffer: string): { blocks: string[]; remainder: string }
   return { blocks, remainder: remaining };
 }
 
-function parseSseBlock(block: string): DashboardChatEvent | null {
+function parseSseBlock<TEvent>(
+  block: string,
+  parser: (payload: Record<string, unknown>) => TEvent,
+): TEvent | null {
   const dataLines = block
     .split("\n")
     .filter((line) => line.startsWith("data: "))
@@ -42,9 +62,7 @@ function parseSseBlock(block: string): DashboardChatEvent | null {
   if (!raw.trim() || raw.trim() === "[DONE]") {
     return null;
   }
-  const parsed = JSON.parse(raw) as Record<string, unknown>;
-  const started = DashboardChatStartedEventSchema.safeParse(parsed);
-  return started.success ? started.data : parsed;
+  return parser(JSON.parse(raw) as Record<string, unknown>);
 }
 
 async function parseErrorResponse(response: Response): Promise<ApiError> {
@@ -76,19 +94,20 @@ async function parseErrorResponse(response: Response): Promise<ApiError> {
   });
 }
 
-export async function streamDashboardChatResponse(
-  payload: DashboardChatRequest,
-  options: StreamDashboardChatOptions,
+async function streamSse<TRequest, TEvent>(
+  url: string,
+  payload: TRequest,
+  options: StreamOptions<TEvent>,
+  parser: (payload: Record<string, unknown>) => TEvent,
 ): Promise<void> {
-  const validated = DashboardChatRequestSchema.parse(payload);
-  const response = await fetch("/api/dashboard-chat/responses", {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
     credentials: "same-origin",
-    body: JSON.stringify(validated),
+    body: JSON.stringify(payload),
     signal: options.signal,
   });
   if (!response.ok) {
@@ -112,7 +131,7 @@ export async function streamDashboardChatResponse(
     const { blocks, remainder } = parseSseBlocks(buffer);
     buffer = remainder;
     for (const block of blocks) {
-      const event = parseSseBlock(block);
+      const event = parseSseBlock(block, parser);
       if (event !== null) {
         options.onEvent(event);
       }
@@ -123,9 +142,47 @@ export async function streamDashboardChatResponse(
   }
 
   if (buffer.trim().length > 0) {
-    const finalEvent = parseSseBlock(buffer);
+    const finalEvent = parseSseBlock(buffer, parser);
     if (finalEvent !== null) {
       options.onEvent(finalEvent);
     }
   }
+}
+
+function parseDashboardChatEvent(payload: Record<string, unknown>): DashboardChatEvent {
+  const started = DashboardChatStartedEventSchema.safeParse(payload);
+  return started.success ? started.data : payload;
+}
+
+function parseDashboardImagesEvent(payload: Record<string, unknown>): DashboardImagesEvent {
+  const started = DashboardImagesStartedEventSchema.safeParse(payload);
+  if (started.success) {
+    return started.data;
+  }
+  const progress = DashboardImagesProgressEventSchema.safeParse(payload);
+  if (progress.success) {
+    return progress.data;
+  }
+  const completed = DashboardImagesCompletedEventSchema.safeParse(payload);
+  if (completed.success) {
+    return completed.data;
+  }
+  const failed = DashboardImagesFailedEventSchema.safeParse(payload);
+  return failed.success ? failed.data : payload;
+}
+
+export async function streamDashboardChatResponse(
+  payload: DashboardChatRequest,
+  options: StreamOptions<DashboardChatEvent>,
+): Promise<void> {
+  const validated = DashboardChatRequestSchema.parse(payload);
+  await streamSse("/api/dashboard-chat/responses", validated, options, parseDashboardChatEvent);
+}
+
+export async function streamDashboardImageConversation(
+  payload: DashboardImagesConversationRequest,
+  options: StreamOptions<DashboardImagesEvent>,
+): Promise<void> {
+  const validated = DashboardImagesConversationRequestSchema.parse(payload);
+  await streamSse("/api/dashboard-images/conversation", validated, options, parseDashboardImagesEvent);
 }

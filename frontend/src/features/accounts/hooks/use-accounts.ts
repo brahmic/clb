@@ -2,12 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
+  deleteAccountChatGPTImageCredentials,
   deleteAccount,
+  deleteAccountChatGPTImageSession,
+  getAccountChatGPTImageCredentials,
+  getAccountChatGPTImageSession,
   getAccountTrends,
   importAccount,
   listAccounts,
   pauseAccount,
   reactivateAccount,
+  updateAccountChatGPTImageCredentials,
   updateAccountConnection,
 } from "@/features/accounts/api";
 
@@ -80,7 +85,50 @@ export function useAccountMutations() {
     },
   });
 
-  return { importMutation, pauseMutation, resumeMutation, deleteMutation, updateConnectionMutation };
+  const deleteChatGPTImageSessionMutation = useMutation({
+    mutationFn: (accountId: string) => deleteAccountChatGPTImageSession(accountId),
+    onSuccess: () => {
+      toast.success("ChatGPT Images session disconnected");
+      invalidateAccountRelatedQueries(queryClient);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to disconnect ChatGPT Images session");
+    },
+  });
+
+  const updateChatGPTImageCredentialsMutation = useMutation({
+    mutationFn: ({ accountId, loginEmail, password }: { accountId: string; loginEmail: string; password: string }) =>
+      updateAccountChatGPTImageCredentials(accountId, { loginEmail, password }),
+    onSuccess: () => {
+      toast.success("ChatGPT Images automation saved");
+      invalidateAccountRelatedQueries(queryClient);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to save ChatGPT Images automation");
+    },
+  });
+
+  const deleteChatGPTImageCredentialsMutation = useMutation({
+    mutationFn: (accountId: string) => deleteAccountChatGPTImageCredentials(accountId),
+    onSuccess: () => {
+      toast.success("ChatGPT Images automation cleared");
+      invalidateAccountRelatedQueries(queryClient);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to clear ChatGPT Images automation");
+    },
+  });
+
+  return {
+    importMutation,
+    pauseMutation,
+    resumeMutation,
+    deleteMutation,
+    updateConnectionMutation,
+    deleteChatGPTImageSessionMutation,
+    updateChatGPTImageCredentialsMutation,
+    deleteChatGPTImageCredentialsMutation,
+  };
 }
 
 export function useAccountTrends(accountId: string | null) {
@@ -106,4 +154,26 @@ export function useAccounts() {
   const mutations = useAccountMutations();
 
   return { accountsQuery, ...mutations };
+}
+
+export function useChatGPTImageSession(accountId: string | null) {
+  return useQuery({
+    queryKey: ["accounts", "chatgpt-image-session", accountId],
+    queryFn: () => getAccountChatGPTImageSession(accountId!),
+    enabled: !!accountId,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useChatGPTImageCredentials(accountId: string | null) {
+  return useQuery({
+    queryKey: ["accounts", "chatgpt-image-credentials", accountId],
+    queryFn: () => getAccountChatGPTImageCredentials(accountId!),
+    enabled: !!accountId,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
 }

@@ -1,5 +1,6 @@
 import { User } from "lucide-react";
 
+import { AccountChatGPTImageSessionSettings } from "@/features/accounts/components/account-chatgpt-image-session-settings";
 import { AccountConnectionSettings } from "@/features/accounts/components/account-connection-settings";
 import { isEmailLabel } from "@/components/blur-email";
 import { usePrivacyStore } from "@/hooks/use-privacy";
@@ -16,13 +17,21 @@ export type AccountDetailProps = {
   showAccountId?: boolean;
   busy: boolean;
   connectionBusy: boolean;
+  chatgptImageSessionBusy: boolean;
+  chatgptImageCredentialsBusy: boolean;
   defaultProxyProfileId: string | null | undefined;
   profiles: ProxyProfile[];
+  chatgptImageSessionDisconnectError: Error | null;
+  chatgptImageCredentialsError: Error | null;
+  chatgptImageCredentialsClearError: Error | null;
   onPause: (accountId: string) => void;
   onResume: (accountId: string) => void;
   onDelete: (accountId: string) => void;
   onReauth: () => void;
   onUpdateConnection: (accountId: string, payload: { mode: "inherit_default" | "direct" | "proxy_profile"; proxyProfileId?: string | null }) => Promise<void>;
+  onDisconnectChatGPTImageSession: (accountId: string) => Promise<void>;
+  onSaveChatGPTImageCredentials: (accountId: string, payload: { loginEmail: string; password: string }) => Promise<void>;
+  onClearChatGPTImageCredentials: (accountId: string) => Promise<void>;
 };
 
 export function AccountDetail({
@@ -30,13 +39,21 @@ export function AccountDetail({
   showAccountId = false,
   busy,
   connectionBusy,
+  chatgptImageSessionBusy,
+  chatgptImageCredentialsBusy,
   defaultProxyProfileId,
   profiles,
+  chatgptImageSessionDisconnectError,
+  chatgptImageCredentialsError,
+  chatgptImageCredentialsClearError,
   onPause,
   onResume,
   onDelete,
   onReauth,
   onUpdateConnection,
+  onDisconnectChatGPTImageSession,
+  onSaveChatGPTImageCredentials,
+  onClearChatGPTImageCredentials,
 }: AccountDetailProps) {
   const { data: trends } = useAccountTrends(account?.accountId ?? null);
   const blurred = usePrivacyStore((s) => s.blurred);
@@ -82,6 +99,16 @@ export function AccountDetail({
         defaultProxyProfileId={defaultProxyProfileId}
         busy={connectionBusy}
         onSave={(payload) => onUpdateConnection(account.accountId, payload)}
+      />
+      <AccountChatGPTImageSessionSettings
+        account={account}
+        busy={chatgptImageSessionBusy || chatgptImageCredentialsBusy}
+        disconnectError={chatgptImageSessionDisconnectError}
+        credentialsError={chatgptImageCredentialsError}
+        clearCredentialsError={chatgptImageCredentialsClearError}
+        onDisconnect={onDisconnectChatGPTImageSession}
+        onSaveCredentials={(accountId, payload) => onSaveChatGPTImageCredentials(accountId, payload)}
+        onClearCredentials={onClearChatGPTImageCredentials}
       />
       <AccountTokenInfo account={account} />
       <AccountActions

@@ -81,6 +81,11 @@ const AccountConnectionPayloadSchema = z.object({
   proxyProfileId: z.string().nullable().optional(),
 }).passthrough();
 
+const AccountChatGPTImageCredentialsPayloadSchema = z.object({
+  loginEmail: z.string().min(1),
+  password: z.string().min(1),
+}).passthrough();
+
 // ── Helpers ──
 
 async function parseJsonBody<T>(request: Request, schema: z.ZodType<T>): Promise<T | null> {
@@ -375,6 +380,114 @@ export const handlers = [
       accountId,
       mode: account.proxyAssignmentMode,
       proxyProfileId: account.proxyProfileId,
+    });
+  }),
+
+  http.get("/api/accounts/:accountId/chatgpt-image-session", ({ params }) => {
+    const accountId = String(params.accountId);
+    const account = findAccount(accountId);
+    if (!account) {
+      return HttpResponse.json(
+        { error: { code: "account_not_found", message: "Account not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({
+      accountId,
+      status: account.chatgptImageSession?.status ?? "disconnected",
+      lastValidatedAt: account.chatgptImageSession?.lastValidatedAt ?? null,
+      lastError: account.chatgptImageSession?.lastError ?? null,
+    });
+  }),
+
+  http.get("/api/accounts/:accountId/chatgpt-image-credentials", ({ params }) => {
+    const accountId = String(params.accountId);
+    const account = findAccount(accountId);
+    if (!account) {
+      return HttpResponse.json(
+        { error: { code: "account_not_found", message: "Account not found" } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({
+      accountId,
+      configured: account.chatgptImageCredentials?.configured ?? false,
+      loginEmail: account.chatgptImageCredentials?.loginEmail ?? null,
+      updatedAt: account.chatgptImageCredentials?.updatedAt ?? null,
+    });
+  }),
+
+  http.put("/api/accounts/:accountId/chatgpt-image-credentials", async ({ params, request }) => {
+    const payload = await parseJsonBody(request, AccountChatGPTImageCredentialsPayloadSchema);
+    const accountId = String(params.accountId);
+    const account = findAccount(accountId);
+    if (!account) {
+      return HttpResponse.json(
+        { error: { code: "account_not_found", message: "Account not found" } },
+        { status: 404 },
+      );
+    }
+    if (!payload) {
+      return HttpResponse.json(
+        { error: { code: "invalid_request", message: "Invalid automation payload" } },
+        { status: 400 },
+      );
+    }
+    const updatedAt = new Date().toISOString();
+    account.chatgptImageCredentials = {
+      configured: true,
+      loginEmail: payload.loginEmail,
+      updatedAt,
+    };
+    return HttpResponse.json({
+      accountId,
+      configured: true,
+      loginEmail: payload.loginEmail,
+      updatedAt,
+    });
+  }),
+
+  http.delete("/api/accounts/:accountId/chatgpt-image-credentials", ({ params }) => {
+    const accountId = String(params.accountId);
+    const account = findAccount(accountId);
+    if (!account) {
+      return HttpResponse.json(
+        { error: { code: "account_not_found", message: "Account not found" } },
+        { status: 404 },
+      );
+    }
+    account.chatgptImageCredentials = {
+      configured: false,
+      loginEmail: null,
+      updatedAt: null,
+    };
+    return HttpResponse.json({
+      accountId,
+      configured: false,
+      loginEmail: null,
+      updatedAt: null,
+    });
+  }),
+
+  http.delete("/api/accounts/:accountId/chatgpt-image-session", ({ params }) => {
+    const accountId = String(params.accountId);
+    const account = findAccount(accountId);
+    if (!account) {
+      return HttpResponse.json(
+        { error: { code: "account_not_found", message: "Account not found" } },
+        { status: 404 },
+      );
+    }
+    account.chatgptImageSession = {
+      status: "disconnected",
+      lastValidatedAt: null,
+      lastError: null,
+    };
+    return HttpResponse.json({
+      accountId,
+      status: "disconnected",
+      lastValidatedAt: null,
+      lastError: null,
     });
   }),
 

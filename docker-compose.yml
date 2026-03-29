@@ -20,6 +20,8 @@ services:
       - --reload
     volumes:
       - codex-lb-data:/var/lib/codex-lb
+    depends_on:
+      - chatgpt-image-worker
     develop:
       watch:
         - action: sync
@@ -31,6 +33,24 @@ services:
           path: ./uv.lock
         - action: rebuild
           path: ./Dockerfile
+    restart: unless-stopped
+
+  chatgpt-image-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.image-worker
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      CODEX_LB_IMAGE_WORKER_TOKEN: ${CODEX_LB_IMAGE_WORKER_TOKEN:-codex-lb-image-worker-dev-token}
+      CODEX_LB_CHATGPT_IMAGE_SESSIONS_DIR: /var/lib/codex-lb/chatgpt-image-sessions
+      CODEX_LB_CHATGPT_IMAGE_BROWSER_IDLE_TTL_SECONDS: ${CODEX_LB_CHATGPT_IMAGE_BROWSER_IDLE_TTL_SECONDS:-600}
+      CODEX_LB_CHATGPT_IMAGE_BROWSER_HEADLESS: ${CODEX_LB_CHATGPT_IMAGE_BROWSER_HEADLESS:-0}
+    volumes:
+      - codex-lb-data:/var/lib/codex-lb
+    depends_on:
+      - xray-client
     restart: unless-stopped
 
   frontend:

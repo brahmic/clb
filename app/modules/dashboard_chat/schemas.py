@@ -68,4 +68,3 @@ class DashboardChatResponsesRequest(DashboardModel):
         if not stripped:
             raise ValueError("Model is required")
         return stripped
-

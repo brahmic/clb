@@ -488,8 +488,6 @@ def test_v1_rejects_builtin_tools():
     payload = {"model": "gpt-5.1", "input": [], "tools": [{"type": "image_generation"}]}
     with pytest.raises(ValidationError, match="Unsupported tool type"):
         V1ResponsesRequest.model_validate(payload)
-
-
 def test_v1_compact_messages_convert():
     payload = {
         "model": "gpt-5.1",

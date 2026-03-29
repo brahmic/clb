@@ -38,16 +38,66 @@ If `accountId` is set, the system MUST pin the request to that active account an
 - **THEN** the stream reports the failure for that same account
 - **AND** the system does not retry the request on a different account
 
+### Requirement: Dashboard images streaming endpoint
+
+The system SHALL expose `POST /api/dashboard-images/conversation` as a dashboard-session-protected `text/event-stream` endpoint dedicated to ChatGPT product image generation and transformation. The request body MUST accept `accountId`, `model`, `conversationId`, `parentMessageId`, `prompt`, `attachments`, and `editTarget`.
+
+If `accountId` is `null`, the endpoint MUST use the same automatic account-selection semantics as dashboard chat. If `accountId` is set, the endpoint MUST pin the request to that active account and MUST NOT fail over to a different account when the pinned attempt fails upstream.
+
+The endpoint MUST emit dashboard-specific SSE events:
+- `dashboard.images.started`
+- `dashboard.images.progress`
+- `dashboard.images.completed`
+- `dashboard.images.failed`
+
+#### Scenario: Image route is authenticated
+- **WHEN** a client calls `POST /api/dashboard-images/conversation` without a valid dashboard session
+- **THEN** the system returns `401` with the dashboard auth error envelope
+
+#### Scenario: Image route rejects non-active account selection
+- **WHEN** a client calls `POST /api/dashboard-images/conversation` with `accountId` that is missing or not `active`
+- **THEN** the system returns `400` with `error.code = "invalid_account_selection"`
+
+#### Scenario: Auto image mode emits routing metadata
+- **WHEN** a client omits `accountId` on `POST /api/dashboard-images/conversation`
+- **THEN** the first SSE event is `dashboard.images.started` with `mode = "auto"`
+
+#### Scenario: Explicit image account selection stays pinned
+- **WHEN** a client sets `accountId` to an active account and the upstream image attempt fails
+- **THEN** the stream reports `dashboard.images.failed` for that same account
+- **AND** the system does not retry the request on a different account
+
+### Requirement: ChatGPT image pipeline
+
+The dashboard images endpoint SHALL use the ChatGPT product image flow instead of the `codex/responses` route. The system MUST upload local browser images through ChatGPT file endpoints, submit image turns through `backend-api/f/conversation`, poll async image status, and fetch generated files as stable inline data for the SPA.
+
+Prompt-only image turns MUST create new images. Prompt plus uploaded reference images MUST create image transformations from those references. Follow-up edits of a previously generated image MUST send transformation metadata using the persisted generated-image identifiers from the prior turn.
+
+#### Scenario: Reference images are uploaded before the image turn
+- **WHEN** an image-thread request includes local attachments
+- **THEN** the system uploads those files through ChatGPT file endpoints
+- **AND** maps them into the conversation payload as `image_asset_pointer` parts with matching attachment metadata
+
+#### Scenario: Edit follow-up uses original generation metadata
+- **WHEN** an image-thread request includes `editTarget`
+- **THEN** the system sends ChatGPT transformation metadata containing the stored `originalGenId` and `fileId`
+
+#### Scenario: Completed image turn returns inline generated assets
+- **WHEN** ChatGPT finishes the image job successfully
+- **THEN** the system emits `dashboard.images.completed`
+- **AND** the event includes `conversationId`, `assistantMessageId`, `parentMessageId`, and generated images as inline data plus persisted edit metadata
+
 ### Requirement: Dashboard chat workspace
 
 The authenticated SPA SHALL expose a top-level `/chat` route in dashboard navigation. The chat page MUST provide:
 - a local thread switcher with `New chat`
 - a model selector populated from `/api/models`
 - an account selector containing `Auto routing` plus only active accounts from `/api/accounts`
+- an explicit thread-mode selector with `Chat` and `ChatGPT Images`
 - a transcript area that streams assistant output in place
 - a composer that supports multiline text, `Enter` to send, `Shift+Enter` for a newline, and image attachments
 
-The page MUST show the resolved serving account from `dashboard.chat.started` for the active thread.
+The page MUST show the resolved serving account from `dashboard.chat.started` or `dashboard.images.started` for the active thread.
 
 #### Scenario: Chat route is protected
 - **WHEN** an unauthenticated browser navigates to `/chat`
@@ -62,9 +112,19 @@ The page MUST show the resolved serving account from `dashboard.chat.started` fo
 - **THEN** the transcript shows both inputs in the user turn
 - **AND** the assistant response streams into the same thread
 
+#### Scenario: Operator generates an image
+- **WHEN** the operator switches the thread to `ChatGPT Images` and submits a prompt
+- **THEN** the assistant transcript renders the generated image inline
+- **AND** the generated image can be opened or downloaded from the transcript
+
+#### Scenario: Operator edits a generated image
+- **WHEN** the operator clicks `Edit` on a generated image and submits a follow-up prompt
+- **THEN** the next image turn uses the selected generated asset as the edit target
+- **AND** the updated generated image appears in the same local thread
+
 ### Requirement: Browser-local chat persistence
 
-The SPA SHALL persist dashboard chat threads in browser storage only. Thread history MUST be stored in IndexedDB, capped to the 20 most recent threads. The active thread id, last selected model, and last routing mode MUST be stored separately in `localStorage`.
+The SPA SHALL persist dashboard chat threads in browser storage only. Thread history MUST be stored in IndexedDB, capped to the 20 most recent threads. The active thread id, last selected model, last routing mode, and last thread mode MUST be stored separately in `localStorage`.
 
 #### Scenario: Reload restores recent threads
 - **WHEN** the operator refreshes `/chat`

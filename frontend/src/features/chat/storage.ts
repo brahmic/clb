@@ -1,4 +1,4 @@
-import { ChatStateSchema, type ChatState } from "@/features/chat/schemas";
+import { ChatStateSchema, type ChatState, type ChatThreadMode } from "@/features/chat/schemas";
 
 const DB_NAME = "codex-lb-dashboard-chat";
 const STORE_NAME = "state";
@@ -6,6 +6,7 @@ const STATE_KEY = "dashboard-chat-state";
 const ACTIVE_THREAD_KEY = "dashboard-chat-active-thread-id";
 const LAST_MODEL_KEY = "dashboard-chat-last-model";
 const LAST_ACCOUNT_KEY = "dashboard-chat-last-account";
+const LAST_THREAD_MODE_KEY = "dashboard-chat-last-thread-mode";
 
 let memoryState: ChatState = { threads: [] };
 
@@ -13,6 +14,7 @@ type ChatPreferences = {
   activeThreadId: string | null;
   lastModel: string | null;
   lastAccount: string | null;
+  lastThreadMode: ChatThreadMode | null;
 };
 
 function getIndexedDb(): IDBFactory | null {
@@ -93,10 +95,17 @@ function setStorageValue(key: string, value: string | null): void {
 }
 
 export function loadChatPreferences(): ChatPreferences {
+  const lastThreadMode = getStorageValue(LAST_THREAD_MODE_KEY);
   return {
     activeThreadId: getStorageValue(ACTIVE_THREAD_KEY),
     lastModel: getStorageValue(LAST_MODEL_KEY),
     lastAccount: getStorageValue(LAST_ACCOUNT_KEY),
+    lastThreadMode:
+      lastThreadMode === "chatgpt_images"
+        ? "chatgpt_images"
+        : lastThreadMode === "chat"
+          ? "chat"
+          : null,
   };
 }
 
@@ -104,5 +113,5 @@ export function saveChatPreferences(preferences: ChatPreferences): void {
   setStorageValue(ACTIVE_THREAD_KEY, preferences.activeThreadId);
   setStorageValue(LAST_MODEL_KEY, preferences.lastModel);
   setStorageValue(LAST_ACCOUNT_KEY, preferences.lastAccount);
+  setStorageValue(LAST_THREAD_MODE_KEY, preferences.lastThreadMode);
 }
-

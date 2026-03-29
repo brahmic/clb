@@ -29,6 +29,9 @@ export function AccountsPage() {
     resumeMutation,
     deleteMutation,
     updateConnectionMutation,
+    deleteChatGPTImageSessionMutation,
+    updateChatGPTImageCredentialsMutation,
+    deleteChatGPTImageCredentialsMutation,
   } = useAccounts();
   const oauth = useOauth();
   const { profilesQuery } = useProxyProfiles();
@@ -71,13 +74,20 @@ export function AccountsPage() {
     pauseMutation.isPending ||
     resumeMutation.isPending ||
     deleteMutation.isPending ||
-    updateConnectionMutation.isPending;
+    updateConnectionMutation.isPending ||
+    deleteChatGPTImageSessionMutation.isPending ||
+    updateChatGPTImageCredentialsMutation.isPending ||
+    deleteChatGPTImageCredentialsMutation.isPending;
 
   const mutationError =
     getErrorMessageOrNull(importMutation.error) ||
     getErrorMessageOrNull(pauseMutation.error) ||
     getErrorMessageOrNull(resumeMutation.error) ||
-    getErrorMessageOrNull(deleteMutation.error);
+    getErrorMessageOrNull(deleteMutation.error) ||
+    getErrorMessageOrNull(updateConnectionMutation.error) ||
+    getErrorMessageOrNull(deleteChatGPTImageSessionMutation.error) ||
+    getErrorMessageOrNull(updateChatGPTImageCredentialsMutation.error) ||
+    getErrorMessageOrNull(deleteChatGPTImageCredentialsMutation.error);
 
   return (
     <div className="animate-fade-in-up space-y-6">
@@ -110,14 +120,30 @@ export function AccountsPage() {
             showAccountId={selectedAccount ? duplicateAccountIds.has(selectedAccount.accountId) : false}
             busy={mutationBusy}
             connectionBusy={updateConnectionMutation.isPending}
+            chatgptImageSessionBusy={deleteChatGPTImageSessionMutation.isPending}
+            chatgptImageCredentialsBusy={
+              updateChatGPTImageCredentialsMutation.isPending || deleteChatGPTImageCredentialsMutation.isPending
+            }
             defaultProxyProfileId={settingsQuery.data?.defaultProxyProfileId}
             profiles={profilesQuery.data ?? []}
+            chatgptImageSessionDisconnectError={deleteChatGPTImageSessionMutation.error}
+            chatgptImageCredentialsError={updateChatGPTImageCredentialsMutation.error}
+            chatgptImageCredentialsClearError={deleteChatGPTImageCredentialsMutation.error}
             onPause={(accountId) => void pauseMutation.mutateAsync(accountId)}
             onResume={(accountId) => void resumeMutation.mutateAsync(accountId)}
             onDelete={(accountId) => deleteDialog.show(accountId)}
             onReauth={() => oauthDialog.show()}
             onUpdateConnection={async (accountId, payload) => {
               await updateConnectionMutation.mutateAsync({ accountId, payload });
+            }}
+            onDisconnectChatGPTImageSession={async (accountId) => {
+              await deleteChatGPTImageSessionMutation.mutateAsync(accountId);
+            }}
+            onSaveChatGPTImageCredentials={async (accountId, payload) => {
+              await updateChatGPTImageCredentialsMutation.mutateAsync({ accountId, ...payload });
+            }}
+            onClearChatGPTImageCredentials={async (accountId) => {
+              await deleteChatGPTImageCredentialsMutation.mutateAsync(accountId);
             }}
           />
         </div>
