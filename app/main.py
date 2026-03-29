@@ -23,6 +23,7 @@ from app.modules.accounts import api as accounts_api
 from app.modules.api_keys import api as api_keys_api
 from app.modules.dashboard import api as dashboard_api
 from app.modules.dashboard_auth import api as dashboard_auth_api
+from app.modules.dashboard_chat import api as dashboard_chat_api
 from app.modules.firewall import api as firewall_api
 from app.modules.health import api as health_api
 from app.modules.oauth import api as oauth_api
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(proxy_profiles_api.router)
     app.include_router(accounts_api.router)
     app.include_router(dashboard_api.router)
+    app.include_router(dashboard_chat_api.router)
     app.include_router(usage_api.router)
     app.include_router(request_logs_api.router)
     app.include_router(oauth_api.router)

@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import AsyncIterator, Mapping, NoReturn, cast
@@ -164,6 +164,7 @@ class ProxyService:
         api_key_reservation: ApiKeyUsageReservationData | None = None,
         suppress_text_done_events: bool = False,
         request_transport: str = _REQUEST_TRANSPORT_HTTP,
+        on_account_selected: Callable[[Account], dict[str, JsonValue] | None] | None = None,
     ) -> AsyncIterator[str]:
         _maybe_log_proxy_request_payload("stream", payload, headers)
         filtered = filter_inbound_headers(headers)
@@ -175,6 +176,30 @@ class ProxyService:
             openai_cache_affinity=openai_cache_affinity,
             api_key=api_key,
             api_key_reservation=api_key_reservation,
+            suppress_text_done_events=suppress_text_done_events,
+            request_transport=request_transport,
+            on_account_selected=on_account_selected,
+        )
+
+    def stream_responses_for_account(
+        self,
+        payload: ResponsesRequest,
+        headers: Mapping[str, str],
+        *,
+        account: Account,
+        start_event_payload: dict[str, JsonValue] | None = None,
+        api_key: ApiKeyData | None = None,
+        suppress_text_done_events: bool = False,
+        request_transport: str = _REQUEST_TRANSPORT_HTTP,
+    ) -> AsyncIterator[str]:
+        _maybe_log_proxy_request_payload("stream_selected", payload, headers)
+        filtered = filter_inbound_headers(headers)
+        return self._stream_selected_account(
+            account,
+            payload,
+            filtered,
+            api_key=api_key,
+            start_event_payload=start_event_payload,
             suppress_text_done_events=suppress_text_done_events,
             request_transport=request_transport,
         )
@@ -3162,6 +3187,7 @@ class ProxyService:
         api_key_reservation: ApiKeyUsageReservationData | None,
         suppress_text_done_events: bool,
         request_transport: str,
+        on_account_selected: Callable[[Account], dict[str, JsonValue] | None] | None = None,
     ) -> AsyncIterator[str]:
         request_id = ensure_request_id()
         start = time.monotonic()
@@ -3197,6 +3223,7 @@ class ProxyService:
         max_attempts = 3
         settled = False
         any_attempt_logged = False
+        selection_announced = False
         settlement = _StreamSettlement()
         last_transient_exc: ProxyResponseError | None = None
         try:
@@ -3295,6 +3322,11 @@ class ProxyService:
                     return
 
                 account_id_value = account.id
+                if on_account_selected is not None and not selection_announced:
+                    selection_event = on_account_selected(account)
+                    if selection_event is not None:
+                        yield format_sse_event(selection_event)
+                    selection_announced = True
                 try:
                     remaining_budget = _remaining_budget_seconds(deadline)
                     if remaining_budget <= 0:
@@ -3670,6 +3702,134 @@ class ProxyService:
                             request_id,
                             exc_info=True,
                         )
+
+    async def _stream_selected_account(
+        self,
+        account: Account,
+        payload: ResponsesRequest,
+        headers: Mapping[str, str],
+        *,
+        api_key: ApiKeyData | None,
+        start_event_payload: dict[str, JsonValue] | None,
+        suppress_text_done_events: bool,
+        request_transport: str,
+    ) -> AsyncIterator[str]:
+        request_id = ensure_request_id()
+        start = time.monotonic()
+        base_settings = get_settings()
+        deadline = start + base_settings.proxy_request_budget_seconds
+        upstream_stream_transport = _resolve_upstream_stream_transport(base_settings.upstream_stream_transport)
+        settlement = _StreamSettlement()
+
+        if start_event_payload is not None:
+            yield format_sse_event(start_event_payload)
+
+        remaining_budget = _remaining_budget_seconds(deadline)
+        if remaining_budget <= 0:
+            await self._write_stream_preflight_error(
+                account_id=account.id,
+                api_key=api_key,
+                request_id=request_id,
+                model=payload.model,
+                start=start,
+                error_code="upstream_request_timeout",
+                error_message="Proxy request budget exhausted",
+                reasoning_effort=payload.reasoning.effort if payload.reasoning else None,
+                service_tier=payload.service_tier,
+                transport=request_transport,
+            )
+            yield format_sse_event(_proxy_request_timeout_event(request_id))
+            return
+
+        try:
+            account = await self._ensure_fresh_with_budget(account, timeout_seconds=remaining_budget)
+        except RefreshError as exc:
+            if exc.is_permanent:
+                await self._load_balancer.mark_permanent_failure(account, exc.code)
+            yield format_sse_event(response_failed_event(exc.code, exc.message, response_id=request_id))
+            return
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            message = str(exc) or "Request to upstream timed out"
+            await self._write_stream_preflight_error(
+                account_id=account.id,
+                api_key=api_key,
+                request_id=request_id,
+                model=payload.model,
+                start=start,
+                error_code="upstream_unavailable",
+                error_message=message,
+                reasoning_effort=payload.reasoning.effort if payload.reasoning else None,
+                service_tier=payload.service_tier,
+                transport=request_transport,
+            )
+            yield format_sse_event(response_failed_event("upstream_unavailable", message, response_id=request_id))
+            return
+
+        effective_attempt_timeout = _remaining_budget_seconds(deadline)
+        if effective_attempt_timeout <= 0:
+            await self._write_stream_preflight_error(
+                account_id=account.id,
+                api_key=api_key,
+                request_id=request_id,
+                model=payload.model,
+                start=start,
+                error_code="upstream_request_timeout",
+                error_message="Proxy request budget exhausted",
+                reasoning_effort=payload.reasoning.effort if payload.reasoning else None,
+                service_tier=payload.service_tier,
+                transport=request_transport,
+            )
+            yield format_sse_event(_proxy_request_timeout_event(request_id))
+            return
+
+        stream_timeout_tokens = _push_stream_attempt_timeout_overrides(effective_attempt_timeout)
+        try:
+            async for line in self._stream_once(
+                account,
+                payload,
+                headers,
+                request_id,
+                False,
+                api_key=api_key,
+                settlement=settlement,
+                suppress_text_done_events=suppress_text_done_events,
+                upstream_stream_transport=upstream_stream_transport,
+                request_transport=request_transport,
+            ):
+                yield line
+        except _TerminalStreamError as exc:
+            if _should_penalize_stream_error(exc.code):
+                await self._handle_stream_error(account, exc.error, exc.code)
+            return
+        except ProxyResponseError as exc:
+            error = _parse_openai_error(exc.payload)
+            error_code = _normalize_error_code(error.code if error else None, error.type if error else None)
+            error_message = error.message if error else None
+            error_type = error.type if error else None
+            error_param = error.param if error else None
+            if _should_penalize_stream_error(error_code):
+                await self._handle_stream_error(account, _upstream_error_from_openai(error), error_code)
+            event = response_failed_event(
+                error_code,
+                error_message or "Upstream error",
+                error_type=error_type or "server_error",
+                response_id=request_id,
+                error_param=error_param,
+            )
+            _apply_error_metadata(event["response"]["error"], error)
+            yield format_sse_event(event)
+            return
+        finally:
+            pop_stream_timeout_overrides(stream_timeout_tokens)
+
+        if settlement.account_health_error:
+            await self._handle_stream_error(
+                account,
+                _stream_settlement_error_payload(settlement),
+                settlement.error_code or "upstream_error",
+            )
+        elif settlement.record_success:
+            await self._load_balancer.record_success(account)
 
     async def _stream_once(
         self,

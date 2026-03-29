@@ -16,6 +16,8 @@ from app.modules.dashboard.repository import DashboardRepository
 from app.modules.dashboard.service import DashboardService
 from app.modules.dashboard_auth.repository import DashboardAuthRepository
 from app.modules.dashboard_auth.service import DashboardAuthService, get_dashboard_session_store
+from app.modules.dashboard_chat.repository import DashboardChatRepository
+from app.modules.dashboard_chat.service import DashboardChatService
 from app.modules.firewall.repository import FirewallRepository
 from app.modules.firewall.service import FirewallService
 from app.modules.oauth.service import OauthService
@@ -62,6 +64,13 @@ class DashboardAuthContext:
 @dataclass(slots=True)
 class ProxyContext:
     service: ProxyService
+
+
+@dataclass(slots=True)
+class DashboardChatContext:
+    session: AsyncSession
+    repository: DashboardChatRepository
+    service: DashboardChatService
 
 
 @dataclass(slots=True)
@@ -184,6 +193,15 @@ def get_dashboard_auth_context(
 def get_proxy_context(request: Request) -> ProxyContext:
     service = get_proxy_service_for_app(request.app)
     return ProxyContext(service=service)
+
+
+def get_dashboard_chat_context(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> DashboardChatContext:
+    repository = DashboardChatRepository(session)
+    service = DashboardChatService(repository, get_proxy_service_for_app(request.app))
+    return DashboardChatContext(session=session, repository=repository, service=service)
 
 
 def get_proxy_service_for_app(app: object) -> ProxyService:

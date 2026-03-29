@@ -18,7 +18,7 @@ The frontend SHALL be a standalone Vite + React + TypeScript project located at 
 - **THEN** Vite outputs optimized assets (JS, CSS, index.html) to `app/static/` with content-hashed filenames
 
 ### Requirement: SPA routing
-The application SHALL use React Router v6 for client-side routing with five routes: `/login`, `/dashboard`, `/accounts`, `/settings`, `/firewall`. The root path `/` SHALL redirect to `/dashboard`. FastAPI SHALL serve `index.html` for all unmatched routes as a SPA fallback.
+The application SHALL use React Router v6 for client-side routing with six routes: `/login`, `/dashboard`, `/chat`, `/accounts`, `/settings`, `/firewall`. The root path `/` SHALL redirect to `/dashboard`. FastAPI SHALL serve `index.html` for all unmatched routes as a SPA fallback.
 
 #### Scenario: Direct navigation to route
 - **WHEN** a user navigates directly to `/firewall` in the browser
@@ -27,6 +27,10 @@ The application SHALL use React Router v6 for client-side routing with five rout
 #### Scenario: Client-side navigation
 - **WHEN** a user clicks the "Firewall" tab from another page
 - **THEN** the URL changes to `/firewall` without full page reload and the Firewall page renders
+
+#### Scenario: Client-side navigation to chat
+- **WHEN** a user clicks the "Chat" tab from another page
+- **THEN** the URL changes to `/chat` without full page reload and the Chat page renders
 
 #### Scenario: Unauthenticated browser navigation to protected route
 - **WHEN** a browser requests `/dashboard` without a valid dashboard session

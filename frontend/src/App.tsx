@@ -9,6 +9,7 @@ import { AuthGate } from "@/features/auth/components/auth-gate";
 import { AuthScreen } from "@/features/auth/components/auth-screen";
 import { useAuthStore } from "@/features/auth/hooks/use-auth";
 import { AccountsPage } from "@/features/accounts/components/accounts-page";
+import { ChatPage } from "@/features/chat/components/chat-page";
 import { DashboardPage } from "@/features/dashboard/components/dashboard-page";
 import { SettingsPage } from "@/features/settings/components/settings-page";
 
@@ -54,6 +55,7 @@ export default function App() {
         >
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/accounts" element={<AccountsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/firewall" element={<Navigate to="/settings" replace />} />
