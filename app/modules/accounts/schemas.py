@@ -62,6 +62,8 @@ class AccountSummary(DashboardModel):
     display_name: str
     plan_type: str
     status: str
+    proxy_assignment_mode: str = Field(pattern=r"^(inherit_default|direct|proxy_profile)$")
+    proxy_profile_id: str | None = None
     usage: AccountUsage | None = None
     reset_at_primary: datetime | None = None
     reset_at_secondary: datetime | None = None
@@ -99,6 +101,12 @@ class AccountReactivateResponse(DashboardModel):
 
 class AccountDeleteResponse(DashboardModel):
     status: str
+
+
+class AccountConnectionResponse(DashboardModel):
+    account_id: str
+    mode: str = Field(pattern=r"^(inherit_default|direct|proxy_profile)$")
+    proxy_profile_id: str | None = None
 
 
 class AccountTrendsResponse(DashboardModel):

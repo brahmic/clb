@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import Body
 
 from app.core.auth.dependencies import set_dashboard_error_format, validate_dashboard_session
 from app.core.exceptions import DashboardBadRequestError, DashboardConflictError, DashboardNotFoundError
 from app.dependencies import AccountsContext, get_accounts_context
 from app.modules.accounts.repository import AccountIdentityConflictError
 from app.modules.accounts.schemas import (
+    AccountConnectionResponse,
     AccountDeleteResponse,
     AccountImportResponse,
     AccountPauseResponse,
@@ -14,6 +16,8 @@ from app.modules.accounts.schemas import (
     AccountsResponse,
     AccountTrendsResponse,
 )
+from app.modules.proxy_profiles.schemas import AccountConnectionUpdateRequest
+from app.modules.proxy_profiles.repository import ProxyProfilesRepository
 from app.modules.accounts.service import InvalidAuthJsonError
 
 router = APIRouter(
@@ -87,3 +91,30 @@ async def delete_account(
     if not success:
         raise DashboardNotFoundError("Account not found", code="account_not_found")
     return AccountDeleteResponse(status="deleted")
+
+
+@router.put("/{account_id}/connection", response_model=AccountConnectionResponse)
+async def update_account_connection(
+    account_id: str,
+    payload: AccountConnectionUpdateRequest = Body(...),
+    context: AccountsContext = Depends(get_accounts_context),
+) -> AccountConnectionResponse:
+    if payload.mode == "proxy_profile":
+        if not payload.proxy_profile_id:
+            raise DashboardBadRequestError("proxyProfileId is required for proxy_profile mode", code="invalid_proxy_mode")
+        profile = await ProxyProfilesRepository(context.session).get_by_id(payload.proxy_profile_id)
+        if profile is None:
+            raise DashboardBadRequestError("Proxy profile not found", code="proxy_profile_not_found")
+    elif payload.proxy_profile_id is not None:
+        raise DashboardBadRequestError(
+            "proxyProfileId is only allowed for proxy_profile mode",
+            code="invalid_proxy_mode",
+        )
+    updated = await context.service.update_connection(
+        account_id,
+        mode=payload.mode,
+        proxy_profile_id=payload.proxy_profile_id,
+    )
+    if not updated:
+        raise DashboardNotFoundError("Account not found", code="account_not_found")
+    return updated

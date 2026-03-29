@@ -10,6 +10,7 @@ describe("DashboardSettingsSchema", () => {
     const parsed = DashboardSettingsSchema.parse({
       stickyThreadsEnabled: true,
       upstreamStreamTransport: "default",
+      defaultProxyProfileId: null,
       preferEarlierResetAccounts: false,
       routingStrategy: "round_robin",
       openaiCacheAffinityMaxAgeSeconds: 300,
@@ -21,6 +22,7 @@ describe("DashboardSettingsSchema", () => {
 
     expect(parsed.stickyThreadsEnabled).toBe(true);
     expect(parsed.upstreamStreamTransport).toBe("default");
+    expect(parsed.defaultProxyProfileId).toBeNull();
     expect(parsed.routingStrategy).toBe("round_robin");
     expect(parsed.openaiCacheAffinityMaxAgeSeconds).toBe(300);
     expect(parsed.importWithoutOverwrite).toBe(true);
@@ -33,6 +35,7 @@ describe("SettingsUpdateRequestSchema", () => {
     const parsed = SettingsUpdateRequestSchema.parse({
       stickyThreadsEnabled: false,
       upstreamStreamTransport: "websocket",
+      defaultProxyProfileId: "proxy_1",
       preferEarlierResetAccounts: true,
       routingStrategy: "usage_weighted",
       openaiCacheAffinityMaxAgeSeconds: 120,
@@ -43,6 +46,7 @@ describe("SettingsUpdateRequestSchema", () => {
 
     expect(parsed.openaiCacheAffinityMaxAgeSeconds).toBe(120);
     expect(parsed.upstreamStreamTransport).toBe("websocket");
+    expect(parsed.defaultProxyProfileId).toBe("proxy_1");
     expect(parsed.importWithoutOverwrite).toBe(true);
     expect(parsed.routingStrategy).toBe("usage_weighted");
     expect(parsed.totpRequiredOnLogin).toBe(true);
@@ -56,6 +60,7 @@ describe("SettingsUpdateRequestSchema", () => {
     });
 
     expect(parsed.upstreamStreamTransport).toBeUndefined();
+    expect(parsed.defaultProxyProfileId).toBeUndefined();
     expect(parsed.importWithoutOverwrite).toBeUndefined();
     expect(parsed.totpRequiredOnLogin).toBeUndefined();
     expect(parsed.apiKeyAuthEnabled).toBeUndefined();

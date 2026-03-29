@@ -33,6 +33,7 @@ const EXPECTED_ENDPOINTS = [
   "POST /api/accounts/:accountId/reactivate",
   "GET /api/accounts/:accountId/trends",
   "DELETE /api/accounts/:accountId",
+  "PUT /api/accounts/:accountId/connection",
   // oauth
   "POST /api/oauth/start",
   "GET /api/oauth/status",
@@ -51,6 +52,11 @@ const EXPECTED_ENDPOINTS = [
   // settings
   "GET /api/settings",
   "PUT /api/settings",
+  "GET /api/proxy-profiles",
+  "GET /api/proxy-profiles/statuses",
+  "POST /api/proxy-profiles",
+  "PUT /api/proxy-profiles/:profileId",
+  "DELETE /api/proxy-profiles/:profileId",
   "GET /api/sticky-sessions",
   "DELETE /api/sticky-sessions/:kind/:key",
   "POST /api/sticky-sessions/purge",

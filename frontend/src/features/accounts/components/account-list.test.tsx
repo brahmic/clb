@@ -19,6 +19,8 @@ describe("AccountList", () => {
             planType: "plus",
             status: "active",
             additionalQuotas: [],
+            proxyAssignmentMode: "inherit_default",
+            proxyProfileId: null,
           },
           {
             accountId: "acc-2",
@@ -27,6 +29,8 @@ describe("AccountList", () => {
             planType: "pro",
             status: "paused",
             additionalQuotas: [],
+            proxyAssignmentMode: "inherit_default",
+            proxyProfileId: null,
           },
         ]}
         selectedAccountId="acc-1"
@@ -60,6 +64,8 @@ describe("AccountList", () => {
             planType: "plus",
             status: "active",
             additionalQuotas: [],
+            proxyAssignmentMode: "inherit_default",
+            proxyProfileId: null,
           },
         ]}
         selectedAccountId={null}
@@ -84,6 +90,8 @@ describe("AccountList", () => {
             planType: "plus",
             status: "active",
             additionalQuotas: [],
+            proxyAssignmentMode: "inherit_default",
+            proxyProfileId: null,
           },
           {
             accountId: "7f9de2ad-7621-4a6f-88bc-ec7f3d914701_91a95cee",
@@ -92,6 +100,8 @@ describe("AccountList", () => {
             planType: "plus",
             status: "active",
             additionalQuotas: [],
+            proxyAssignmentMode: "inherit_default",
+            proxyProfileId: null,
           },
           {
             accountId: "acc-3",
@@ -100,6 +110,8 @@ describe("AccountList", () => {
             planType: "pro",
             status: "active",
             additionalQuotas: [],
+            proxyAssignmentMode: "inherit_default",
+            proxyProfileId: null,
           },
         ]}
         selectedAccountId={null}

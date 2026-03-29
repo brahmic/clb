@@ -50,6 +50,7 @@ async def fetch_usage(
     timeout_seconds: float | None = None,
     max_retries: int | None = None,
     client: RetryClient | None = None,
+    proxy_url: str | None = None,
 ) -> UsagePayload:
     settings = get_settings()
     usage_base = base_url or settings.upstream_base_url
@@ -66,6 +67,7 @@ async def fetch_usage(
             url,
             headers=headers,
             timeout=timeout,
+            proxy=proxy_url,
             retry_options=retry_options,
         ) as resp:
             data = await _safe_json(resp)

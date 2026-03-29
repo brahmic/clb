@@ -19,6 +19,7 @@ from app.core.utils.request_id import get_request_id
 from app.core.utils.time import utcnow
 from app.db.models import Account, AccountStatus, UsageHistory
 from app.modules.accounts.auth_manager import AccountsRepositoryPort, AuthManager
+from app.modules.proxy_profiles.runtime import resolve_account_proxy_connection_from_db
 from app.modules.usage.additional_quota_keys import canonicalize_additional_quota_key
 from app.modules.usage.repository import AdditionalUsageRepository
 
@@ -260,11 +261,13 @@ class UsageUpdater:
         usage_account_id: str | None,
     ) -> AccountRefreshResult:
         access_token = self._encryptor.decrypt(account.access_token_encrypted)
+        connection = await resolve_account_proxy_connection_from_db(account)
         payload: UsagePayload | None = None
         try:
             payload = await fetch_usage(
                 access_token=access_token,
                 account_id=usage_account_id,
+                proxy_url=connection.proxy_url,
             )
         except UsageFetchError as exc:
             if _should_deactivate_for_usage_error(exc.status_code):
@@ -281,6 +284,7 @@ class UsageUpdater:
                 payload = await fetch_usage(
                     access_token=access_token,
                     account_id=usage_account_id,
+                    proxy_url=connection.proxy_url,
                 )
             except UsageFetchError as retry_exc:
                 if _should_deactivate_for_usage_error(retry_exc.status_code):

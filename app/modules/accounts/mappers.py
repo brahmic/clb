@@ -100,6 +100,8 @@ def _account_to_summary(
         display_name=account.email,
         plan_type=plan_type,
         status=account.status.value,
+        proxy_assignment_mode=account.proxy_assignment_mode,
+        proxy_profile_id=account.proxy_profile_id,
         usage=AccountUsage(
             primary_remaining_percent=primary_remaining_percent,
             secondary_remaining_percent=secondary_remaining_percent,

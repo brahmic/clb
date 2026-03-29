@@ -84,6 +84,10 @@ from app.modules.proxy.helpers import (
     _window_snapshot,
 )
 from app.modules.proxy.load_balancer import AccountSelection, LoadBalancer
+from app.modules.proxy_profiles.runtime import (
+    ProxyProfileResolutionError,
+    resolve_account_proxy_connection_from_db,
+)
 from app.modules.proxy.rate_limit_cache import get_rate_limit_headers_cache
 from app.modules.proxy.repo_bundle import ProxyRepoFactory, ProxyRepositories
 from app.modules.proxy.request_policy import (
@@ -400,6 +404,7 @@ class ProxyService:
             async def _call_compact(target: Account) -> CompactResponsePayload:
                 access_token = self._encryptor.decrypt(target.access_token_encrypted)
                 account_id = _header_account_id(target.chatgpt_account_id)
+                connection = await resolve_account_proxy_connection_from_db(target)
                 remaining_budget = _remaining_budget_seconds(deadline)
                 if remaining_budget <= 0:
                     logger.warning(
@@ -418,7 +423,13 @@ class ProxyService:
                         total_timeout_seconds=remaining_budget,
                     )
                 try:
-                    return await core_compact_responses(payload, filtered, access_token, account_id)
+                    return await core_compact_responses(
+                        payload,
+                        filtered,
+                        access_token,
+                        account_id,
+                        proxy_url=connection.proxy_url,
+                    )
                 finally:
                     pop_compact_timeout_overrides(timeout_tokens)
 
@@ -478,6 +489,14 @@ class ProxyService:
                         )
                         log_status = "success"
                         return response
+                    except ProxyProfileResolutionError as exc:
+                        await self._settle_compact_api_key_usage(
+                            api_key=api_key,
+                            api_key_reservation=api_key_reservation,
+                            response=None,
+                            request_service_tier=request_service_tier,
+                        )
+                        raise ProxyResponseError(503, openai_error("proxy_profile_error", str(exc))) from exc
                     except ProxyResponseError as exc:
                         if exc.status_code == 401:
                             if refresh_retry_used:
@@ -675,6 +694,7 @@ class ProxyService:
             async def _call_transcribe(target: Account) -> dict[str, JsonValue]:
                 access_token = self._encryptor.decrypt(target.access_token_encrypted)
                 account_id = _header_account_id(target.chatgpt_account_id)
+                connection = await resolve_account_proxy_connection_from_db(target)
                 remaining_budget = _remaining_budget_seconds(deadline)
                 if remaining_budget <= 0:
                     logger.warning(
@@ -696,6 +716,7 @@ class ProxyService:
                         headers=filtered,
                         access_token=access_token,
                         account_id=account_id,
+                        proxy_url=connection.proxy_url,
                     )
                 finally:
                     pop_transcribe_timeout_overrides(timeout_tokens)
@@ -721,6 +742,8 @@ class ProxyService:
                 await self._load_balancer.record_success(account)
                 log_status = "success"
                 return result
+            except ProxyProfileResolutionError as exc:
+                raise ProxyResponseError(503, openai_error("proxy_profile_error", str(exc))) from exc
             except RefreshError as refresh_exc:
                 if refresh_exc.is_permanent:
                     await self._load_balancer.mark_permanent_failure(account, refresh_exc.code)
@@ -766,6 +789,8 @@ class ProxyService:
                     await self._load_balancer.record_success(account)
                     log_status = "success"
                     return result
+                except ProxyProfileResolutionError as exc:
+                    raise ProxyResponseError(503, openai_error("proxy_profile_error", str(exc))) from exc
                 except ProxyResponseError as exc:
                     await self._handle_proxy_error(account, exc)
                     raise
@@ -1408,7 +1433,8 @@ class ProxyService:
     ) -> UpstreamResponsesWebSocket:
         access_token = self._encryptor.decrypt(account.access_token_encrypted)
         account_id = _header_account_id(account.chatgpt_account_id)
-        return await connect_responses_websocket(headers, access_token, account_id)
+        connection = await resolve_account_proxy_connection_from_db(account)
+        return await connect_responses_websocket(headers, access_token, account_id, proxy_url=connection.proxy_url)
 
     async def _http_bridge_pending_count(self, session: "_HTTPBridgeSession") -> int:
         async with session.pending_lock:
@@ -3663,6 +3689,7 @@ class ProxyService:
         account_id_value = account.id
         access_token = self._encryptor.decrypt(account.access_token_encrypted)
         account_id = _header_account_id(account.chatgpt_account_id)
+        connection = await resolve_account_proxy_connection_from_db(account)
         model = payload.model
         requested_service_tier = payload.service_tier
         service_tier = requested_service_tier
@@ -3684,6 +3711,7 @@ class ProxyService:
                     account_id,
                     raise_for_status=True,
                     upstream_stream_transport_override=upstream_stream_transport,
+                    proxy_url=connection.proxy_url,
                 )
             else:
                 stream = core_stream_responses(
@@ -3692,6 +3720,7 @@ class ProxyService:
                     access_token,
                     account_id,
                     raise_for_status=True,
+                    proxy_url=connection.proxy_url,
                 )
             iterator = stream.__aiter__()
             try:
@@ -3804,6 +3833,13 @@ class ProxyService:
             settlement.record_success = False
             settlement.account_health_error = _should_penalize_stream_error(error_code)
             raise
+        except ProxyProfileResolutionError as exc:
+            status = "error"
+            error_code = "proxy_profile_error"
+            error_message = str(exc)
+            settlement.record_success = False
+            settlement.account_health_error = False
+            yield format_sse_event(response_failed_event(error_code, error_message, response_id=request_id))
         finally:
             input_tokens = usage.input_tokens if usage else None
             output_tokens = usage.output_tokens if usage else None

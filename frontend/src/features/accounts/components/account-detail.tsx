@@ -1,11 +1,13 @@
 import { User } from "lucide-react";
 
+import { AccountConnectionSettings } from "@/features/accounts/components/account-connection-settings";
 import { isEmailLabel } from "@/components/blur-email";
 import { usePrivacyStore } from "@/hooks/use-privacy";
 import { AccountActions } from "@/features/accounts/components/account-actions";
 import { AccountTokenInfo } from "@/features/accounts/components/account-token-info";
 import { AccountUsagePanel } from "@/features/accounts/components/account-usage-panel";
 import type { AccountSummary } from "@/features/accounts/schemas";
+import type { ProxyProfile } from "@/features/proxy-profiles/schemas";
 import { useAccountTrends } from "@/features/accounts/hooks/use-accounts";
 import { formatCompactAccountId } from "@/utils/account-identifiers";
 
@@ -13,20 +15,28 @@ export type AccountDetailProps = {
   account: AccountSummary | null;
   showAccountId?: boolean;
   busy: boolean;
+  connectionBusy: boolean;
+  defaultProxyProfileId: string | null | undefined;
+  profiles: ProxyProfile[];
   onPause: (accountId: string) => void;
   onResume: (accountId: string) => void;
   onDelete: (accountId: string) => void;
   onReauth: () => void;
+  onUpdateConnection: (accountId: string, payload: { mode: "inherit_default" | "direct" | "proxy_profile"; proxyProfileId?: string | null }) => Promise<void>;
 };
 
 export function AccountDetail({
   account,
   showAccountId = false,
   busy,
+  connectionBusy,
+  defaultProxyProfileId,
+  profiles,
   onPause,
   onResume,
   onDelete,
   onReauth,
+  onUpdateConnection,
 }: AccountDetailProps) {
   const { data: trends } = useAccountTrends(account?.accountId ?? null);
   const blurred = usePrivacyStore((s) => s.blurred);
@@ -66,6 +76,13 @@ export function AccountDetail({
       </div>
 
       <AccountUsagePanel account={account} trends={trends} />
+      <AccountConnectionSettings
+        account={account}
+        profiles={profiles}
+        defaultProxyProfileId={defaultProxyProfileId}
+        busy={connectionBusy}
+        onSave={(payload) => onUpdateConnection(account.accountId, payload)}
+      />
       <AccountTokenInfo account={account} />
       <AccountActions
         account={account}

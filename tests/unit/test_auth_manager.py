@@ -11,6 +11,7 @@ from app.core.utils.time import utcnow
 from app.db.models import Account, AccountStatus
 from app.modules.accounts import auth_manager as auth_manager_module
 from app.modules.accounts.auth_manager import AccountsRepositoryPort, AuthManager
+from app.modules.proxy_profiles.runtime import ResolvedProxyConnection
 
 pytestmark = pytest.mark.unit
 
@@ -53,7 +54,8 @@ class _DummyRepo:
 
 @pytest.mark.asyncio
 async def test_refresh_account_preserves_plan_type_when_missing(monkeypatch):
-    async def _fake_refresh(_: str) -> TokenRefreshResult:
+    async def _fake_refresh(_: str, *, proxy_url: str | None = None) -> TokenRefreshResult:
+        assert proxy_url is None
         return TokenRefreshResult(
             access_token="new-access",
             refresh_token="new-refresh",
@@ -64,6 +66,11 @@ async def test_refresh_account_preserves_plan_type_when_missing(monkeypatch):
         )
 
     monkeypatch.setattr(auth_manager_module, "refresh_access_token", _fake_refresh)
+
+    async def _fake_resolve_connection(_: Account) -> ResolvedProxyConnection:
+        return ResolvedProxyConnection(mode="direct")
+
+    monkeypatch.setattr(auth_manager_module, "resolve_account_proxy_connection_from_db", _fake_resolve_connection)
 
     encryptor = TokenEncryptor()
     account = Account(

@@ -4,7 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - .env.local
+      - path: .env.local
+        required: false
     ports:
       - "2455:2455"
       - "1455:1455"
@@ -57,6 +58,53 @@ services:
           path: ./frontend/package.json
         - action: rebuild
           path: ./frontend/bun.lock
+
+  xray-client:
+    image: teddysun/xray:latest
+    volumes:
+      - codex-lb-data:/var/lib/codex-lb
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        set -eu
+        CONFIG=/var/lib/codex-lb/xray/config.json
+        MARKER=/var/lib/codex-lb/xray/reload.marker
+        mkdir -p /var/lib/codex-lb/xray
+        chown -R 1000:1000 /var/lib/codex-lb/xray
+        if [ ! -f "$$CONFIG" ]; then
+          cat >"$$CONFIG" <<'JSON'
+        {"log":{"loglevel":"info"},"inbounds":[],"outbounds":[{"tag":"direct","protocol":"freedom"}],"routing":{"domainStrategy":"AsIs","rules":[]}}
+        JSON
+        fi
+        touch "$$MARKER"
+        chown 1000:1000 "$$CONFIG" "$$MARKER"
+        checksum=""
+        child_pid=""
+        start_xray() {
+          xray -config "$$CONFIG" &
+          child_pid="$$!"
+        }
+        stop_xray() {
+          if [ -n "$${child_pid:-}" ] && kill -0 "$$child_pid" 2>/dev/null; then
+            kill "$$child_pid" 2>/dev/null || true
+            wait "$$child_pid" 2>/dev/null || true
+          fi
+          child_pid=""
+        }
+        trap 'stop_xray; exit 0' INT TERM
+        while true; do
+          new_checksum="$$(cksum "$$CONFIG" "$$MARKER" 2>/dev/null || true)"
+          if [ "$$new_checksum" != "$$checksum" ]; then
+            stop_xray
+            start_xray
+            checksum="$$new_checksum"
+          elif [ -n "$${child_pid:-}" ] && ! kill -0 "$$child_pid" 2>/dev/null; then
+            start_xray
+          fi
+          sleep 2
+        done
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine

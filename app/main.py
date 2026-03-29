@@ -18,6 +18,7 @@ from app.core.middleware import (
 from app.core.openai.model_refresh_scheduler import build_model_refresh_scheduler
 from app.core.usage.refresh_scheduler import build_usage_refresh_scheduler
 from app.db.session import close_db, init_db
+from app.db.session import get_background_session
 from app.modules.accounts import api as accounts_api
 from app.modules.api_keys import api as api_keys_api
 from app.modules.dashboard import api as dashboard_api
@@ -26,6 +27,9 @@ from app.modules.firewall import api as firewall_api
 from app.modules.health import api as health_api
 from app.modules.oauth import api as oauth_api
 from app.modules.proxy import api as proxy_api
+from app.modules.proxy_profiles import api as proxy_profiles_api
+from app.modules.proxy_profiles.repository import ProxyProfilesRepository
+from app.modules.proxy_profiles.service import ProxyProfilesService
 from app.modules.proxy.rate_limit_cache import get_rate_limit_headers_cache
 from app.modules.request_logs import api as request_logs_api
 from app.modules.settings import api as settings_api
@@ -42,6 +46,8 @@ async def lifespan(_: FastAPI):
     await get_rate_limit_headers_cache().invalidate()
     reload_additional_quota_registry()
     await init_db()
+    async with get_background_session() as session:
+        await ProxyProfilesService(ProxyProfilesRepository(session)).sync_runtime()
     await init_http_client()
     usage_scheduler = build_usage_refresh_scheduler()
     model_scheduler = build_model_refresh_scheduler()
@@ -81,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(proxy_api.v1_ws_router)
     app.include_router(proxy_api.transcribe_router)
     app.include_router(proxy_api.usage_router)
+    app.include_router(proxy_profiles_api.router)
     app.include_router(accounts_api.router)
     app.include_router(dashboard_api.router)
     app.include_router(usage_api.router)

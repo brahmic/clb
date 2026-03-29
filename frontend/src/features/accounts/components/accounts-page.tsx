@@ -11,6 +11,8 @@ import { AccountsSkeleton } from "@/features/accounts/components/accounts-skelet
 import { ImportDialog } from "@/features/accounts/components/import-dialog";
 import { useAccounts } from "@/features/accounts/hooks/use-accounts";
 import { useOauth } from "@/features/accounts/hooks/use-oauth";
+import { useProxyProfiles } from "@/features/proxy-profiles/hooks/use-proxy-profiles";
+import { useSettings } from "@/features/settings/hooks/use-settings";
 import { buildDuplicateAccountIdSet } from "@/utils/account-identifiers";
 import { getErrorMessageOrNull } from "@/utils/errors";
 
@@ -26,8 +28,11 @@ export function AccountsPage() {
     pauseMutation,
     resumeMutation,
     deleteMutation,
+    updateConnectionMutation,
   } = useAccounts();
   const oauth = useOauth();
+  const { profilesQuery } = useProxyProfiles();
+  const { settingsQuery } = useSettings();
 
   const importDialog = useDialogState();
   const oauthDialog = useDialogState();
@@ -65,7 +70,8 @@ export function AccountsPage() {
     importMutation.isPending ||
     pauseMutation.isPending ||
     resumeMutation.isPending ||
-    deleteMutation.isPending;
+    deleteMutation.isPending ||
+    updateConnectionMutation.isPending;
 
   const mutationError =
     getErrorMessageOrNull(importMutation.error) ||
@@ -103,10 +109,16 @@ export function AccountsPage() {
             account={selectedAccount}
             showAccountId={selectedAccount ? duplicateAccountIds.has(selectedAccount.accountId) : false}
             busy={mutationBusy}
+            connectionBusy={updateConnectionMutation.isPending}
+            defaultProxyProfileId={settingsQuery.data?.defaultProxyProfileId}
+            profiles={profilesQuery.data ?? []}
             onPause={(accountId) => void pauseMutation.mutateAsync(accountId)}
             onResume={(accountId) => void resumeMutation.mutateAsync(accountId)}
             onDelete={(accountId) => deleteDialog.show(accountId)}
             onReauth={() => oauthDialog.show()}
+            onUpdateConnection={async (accountId, payload) => {
+              await updateConnectionMutation.mutateAsync({ accountId, payload });
+            }}
           />
         </div>
       )}

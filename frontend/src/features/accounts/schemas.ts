@@ -54,6 +54,8 @@ export const AccountSummarySchema = z.object({
   displayName: z.string(),
   planType: z.string(),
   status: z.string(),
+  proxyAssignmentMode: z.enum(["inherit_default", "direct", "proxy_profile"]),
+  proxyProfileId: z.string().nullable().optional(),
   usage: AccountUsageSchema.nullable().optional(),
   resetAtPrimary: z.string().datetime({ offset: true }).nullable().optional(),
   resetAtSecondary: z.string().datetime({ offset: true }).nullable().optional(),
@@ -83,6 +85,17 @@ export const AccountImportResponseSchema = z.object({
 
 export const AccountActionResponseSchema = z.object({
   status: z.string(),
+});
+
+export const AccountConnectionResponseSchema = z.object({
+  accountId: z.string(),
+  mode: z.enum(["inherit_default", "direct", "proxy_profile"]),
+  proxyProfileId: z.string().nullable().optional(),
+});
+
+export const AccountConnectionUpdateRequestSchema = z.object({
+  mode: z.enum(["inherit_default", "direct", "proxy_profile"]),
+  proxyProfileId: z.string().nullable().optional(),
 });
 
 export const OauthStartRequestSchema = z.object({

@@ -73,6 +73,17 @@ class Account(Base):
     )
     deactivation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     reset_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proxy_assignment_mode: Mapped[str] = mapped_column(
+        String,
+        default="inherit_default",
+        server_default=text("'inherit_default'"),
+        nullable=False,
+    )
+    proxy_profile_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("proxy_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
 
 class UsageHistory(Base):
@@ -169,6 +180,11 @@ class DashboardSettings(Base):
         server_default=text("'default'"),
         nullable=False,
     )
+    default_proxy_profile_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("proxy_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     prefer_earlier_reset_accounts: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     routing_strategy: Mapped[str] = mapped_column(
         String,
@@ -215,6 +231,31 @@ class ApiFirewallAllowlist(Base):
 
     ip_address: Mapped[str] = mapped_column(String, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+
+class ProxyProfile(Base):
+    __tablename__ = "proxy_profiles"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    protocol: Mapped[str] = mapped_column(
+        String,
+        default="vless",
+        server_default=text("'vless'"),
+        nullable=False,
+    )
+    transport_kind: Mapped[str] = mapped_column(String, nullable=False)
+    server_host: Mapped[str] = mapped_column(String, nullable=False)
+    server_port: Mapped[int] = mapped_column(Integer, nullable=False)
+    local_proxy_port: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    uri_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
 
 
 class ApiKey(Base):

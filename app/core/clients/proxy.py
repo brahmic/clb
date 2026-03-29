@@ -855,6 +855,7 @@ async def _open_upstream_websocket(
     headers: Mapping[str, str],
     connect_timeout_seconds: float,
     max_msg_size: int,
+    proxy_url: str | None = None,
 ) -> tuple[AsyncContextManager[aiohttp.ClientWebSocketResponse], aiohttp.ClientWebSocketResponse]:
     request = getattr(session, "request", None)
     if not callable(request):
@@ -865,6 +866,7 @@ async def _open_upstream_websocket(
             autoping=True,
             autoclose=True,
             max_msg_size=max_msg_size,
+            proxy=proxy_url,
         )
         websocket = await asyncio.wait_for(websocket_cm.__aenter__(), timeout=connect_timeout_seconds)
         return websocket_cm, websocket
@@ -883,6 +885,7 @@ async def _open_upstream_websocket(
         headers=request_headers,
         timeout=timeout,
         read_until_eof=False,
+        proxy=proxy_url,
     )
 
     async def _raise_handshake_error(message: str) -> None:
@@ -1015,6 +1018,7 @@ async def _stream_responses_via_websocket(
     effective_idle_timeout: float,
     max_event_bytes: int,
     raise_for_status: bool,
+    proxy_url: str | None = None,
 ) -> AsyncIterator[str]:
     websocket_url = _to_websocket_upstream_url(url)
     request_started_at = time.monotonic()
@@ -1032,6 +1036,7 @@ async def _stream_responses_via_websocket(
         headers=headers,
         connect_timeout_seconds=connect_timeout_seconds,
         max_msg_size=max_event_bytes,
+        proxy_url=proxy_url,
     )
 
     try:
@@ -1350,6 +1355,7 @@ async def stream_responses(
     raise_for_status: bool = False,
     session: aiohttp.ClientSession | None = None,
     upstream_stream_transport_override: str | None = None,
+    proxy_url: str | None = None,
 ) -> AsyncIterator[str]:
     settings = get_settings()
     upstream_base = (base_url or settings.upstream_base_url).rstrip("/")
@@ -1416,6 +1422,7 @@ async def stream_responses(
             json=payload_dict,
             headers=current_headers,
             timeout=current_timeout,
+            proxy=proxy_url,
         ) as resp:
             status_code = resp.status
             if resp.status >= 400:
@@ -1466,6 +1473,7 @@ async def stream_responses(
                     effective_idle_timeout=effective_idle_timeout,
                     max_event_bytes=settings.max_sse_event_bytes,
                     raise_for_status=raise_for_status,
+                    proxy_url=proxy_url,
                 ):
                     if status_code is None:
                         status_code = 101
@@ -1716,6 +1724,7 @@ async def compact_responses(
     access_token: str,
     account_id: str | None,
     session: aiohttp.ClientSession | None = None,
+    proxy_url: str | None = None,
 ) -> CompactResponsePayload:
     transport = _CompactCommandTransport(
         payload=payload,
@@ -1723,6 +1732,7 @@ async def compact_responses(
         access_token=access_token,
         account_id=account_id,
         session=session or get_http_client().session,
+        proxy_url=proxy_url,
     )
     return await transport.execute()
 
@@ -1738,6 +1748,7 @@ class _CompactCommandTransport:
     access_token: str
     account_id: str | None
     session: aiohttp.ClientSession
+    proxy_url: str | None = None
 
     async def execute(self) -> CompactResponsePayload:
         settings = get_settings()
@@ -1804,6 +1815,7 @@ class _CompactCommandTransport:
                 json=payload_dict,
                 headers=upstream_headers,
                 timeout=timeout,
+                proxy=self.proxy_url,
             ) as resp:
                 status_code = resp.status
                 if resp.status >= 400:
@@ -1922,6 +1934,7 @@ async def transcribe_audio(
     account_id: str | None,
     base_url: str | None = None,
     session: aiohttp.ClientSession | None = None,
+    proxy_url: str | None = None,
 ) -> dict[str, JsonValue]:
     settings = get_settings()
     upstream_base = (base_url or settings.upstream_base_url).rstrip("/")
@@ -1986,6 +1999,7 @@ async def transcribe_audio(
             data=form,
             headers=upstream_headers,
             timeout=timeout,
+            proxy=proxy_url,
         ) as resp:
             status_code = resp.status
             if resp.status >= 400:

@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     model_registry_enabled: bool = True
     model_registry_refresh_interval_seconds: int = Field(default=300, gt=0)
     model_registry_client_version: str = "0.101.0"
+    xray_sidecar_host: str = "xray-client"
+    xray_config_path: Path = DEFAULT_HOME_DIR / "xray" / "config.json"
+    xray_reload_marker_path: Path = DEFAULT_HOME_DIR / "xray" / "reload.marker"
     firewall_trust_proxy_headers: bool = False
     firewall_trusted_proxy_cidrs: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["127.0.0.1/32", "::1/128"]
@@ -131,6 +134,15 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return Path(value).expanduser()
         raise TypeError("encryption_key_file must be a path")
+
+    @field_validator("xray_config_path", "xray_reload_marker_path", mode="before")
+    @classmethod
+    def _expand_path_settings(cls, value: str | Path) -> Path:
+        if isinstance(value, Path):
+            return value.expanduser()
+        if isinstance(value, str):
+            return Path(value).expanduser()
+        raise TypeError("path setting must be a path")
 
     @field_validator("image_inline_allowed_hosts", mode="before")
     @classmethod

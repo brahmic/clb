@@ -6,6 +6,7 @@ export const UpstreamStreamTransportSchema = z.enum(["default", "auto", "http", 
 export const DashboardSettingsSchema = z.object({
   stickyThreadsEnabled: z.boolean(),
   upstreamStreamTransport: UpstreamStreamTransportSchema,
+  defaultProxyProfileId: z.string().nullable().optional(),
   preferEarlierResetAccounts: z.boolean(),
   routingStrategy: RoutingStrategySchema,
   openaiCacheAffinityMaxAgeSeconds: z.number().int().positive(),
@@ -18,6 +19,7 @@ export const DashboardSettingsSchema = z.object({
 export const SettingsUpdateRequestSchema = z.object({
   stickyThreadsEnabled: z.boolean(),
   upstreamStreamTransport: UpstreamStreamTransportSchema.optional(),
+  defaultProxyProfileId: z.string().nullable().optional(),
   preferEarlierResetAccounts: z.boolean(),
   routingStrategy: RoutingStrategySchema.optional(),
   openaiCacheAffinityMaxAgeSeconds: z.number().int().positive().optional(),

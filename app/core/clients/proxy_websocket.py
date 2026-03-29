@@ -160,6 +160,7 @@ async def connect_responses_websocket(
     *,
     base_url: str | None = None,
     session: object | None = None,
+    proxy_url: str | None = None,
 ) -> UpstreamResponsesWebSocket:
     settings = get_settings()
     upstream_base = (base_url or settings.upstream_base_url).rstrip("/")
@@ -175,7 +176,7 @@ async def connect_responses_websocket(
             origin=origin,
             additional_headers=upstream_headers or None,
             user_agent_header=user_agent,
-            proxy=True if settings.upstream_websocket_trust_env else None,
+            proxy=proxy_url if proxy_url is not None else (True if settings.upstream_websocket_trust_env else None),
             open_timeout=settings.upstream_connect_timeout_seconds,
             max_size=settings.max_sse_event_bytes,
         )

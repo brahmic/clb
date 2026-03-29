@@ -8,6 +8,7 @@ import {
   listAccounts,
   pauseAccount,
   reactivateAccount,
+  updateAccountConnection,
 } from "@/features/accounts/api";
 
 function invalidateAccountRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
@@ -67,7 +68,19 @@ export function useAccountMutations() {
     },
   });
 
-  return { importMutation, pauseMutation, resumeMutation, deleteMutation };
+  const updateConnectionMutation = useMutation({
+    mutationFn: ({ accountId, payload }: { accountId: string; payload: { mode: "inherit_default" | "direct" | "proxy_profile"; proxyProfileId?: string | null } }) =>
+      updateAccountConnection(accountId, payload),
+    onSuccess: () => {
+      toast.success("Connection updated");
+      invalidateAccountRelatedQueries(queryClient);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Connection update failed");
+    },
+  });
+
+  return { importMutation, pauseMutation, resumeMutation, deleteMutation, updateConnectionMutation };
 }
 
 export function useAccountTrends(accountId: string | null) {

@@ -16,6 +16,8 @@ function account(overrides: Partial<AccountSummary> & Pick<AccountSummary, "acco
     displayName: overrides.displayName ?? overrides.email,
     planType: overrides.planType ?? "plus",
     status: overrides.status ?? "active",
+    proxyAssignmentMode: overrides.proxyAssignmentMode ?? "inherit_default",
+    proxyProfileId: overrides.proxyProfileId ?? null,
     usage: overrides.usage ?? null,
     resetAtPrimary: overrides.resetAtPrimary ?? null,
     resetAtSecondary: overrides.resetAtSecondary ?? null,

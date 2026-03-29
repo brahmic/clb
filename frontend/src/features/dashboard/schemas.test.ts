@@ -186,6 +186,8 @@ describe("AccountSummarySchema light contract", () => {
       displayName: "User",
       planType: "pro",
       status: "active",
+      proxyAssignmentMode: "inherit_default",
+      proxyProfileId: null,
       capacity_credits_primary: 500,
       remaining_credits_primary: 300,
       capacity_credits_secondary: 2000,

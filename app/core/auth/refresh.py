@@ -61,6 +61,7 @@ async def refresh_access_token(
     refresh_token: str,
     *,
     session: aiohttp.ClientSession | None = None,
+    proxy_url: str | None = None,
 ) -> TokenRefreshResult:
     settings = get_settings()
     url = f"{settings.auth_base_url.rstrip('/')}/oauth/token"
@@ -77,7 +78,7 @@ async def refresh_access_token(
     request_id = get_request_id()
     if request_id:
         headers["x-request-id"] = request_id
-    async with client_session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
+    async with client_session.post(url, json=payload, headers=headers, timeout=timeout, proxy=proxy_url) as resp:
         data = await _safe_json(resp)
         try:
             payload_data = OAuthTokenPayload.model_validate(data)

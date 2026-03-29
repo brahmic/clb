@@ -21,6 +21,8 @@ from app.modules.firewall.service import FirewallService
 from app.modules.oauth.service import OauthService
 from app.modules.proxy.repo_bundle import ProxyRepositories
 from app.modules.proxy.service import ProxyService
+from app.modules.proxy_profiles.repository import ProxyProfilesRepository
+from app.modules.proxy_profiles.service import ProxyProfilesService
 from app.modules.proxy.sticky_repository import StickySessionsRepository
 from app.modules.request_logs.repository import RequestLogsRepository
 from app.modules.request_logs.service import RequestLogsService
@@ -81,6 +83,13 @@ class SettingsContext:
     session: AsyncSession
     repository: SettingsRepository
     service: SettingsService
+
+
+@dataclass(slots=True)
+class ProxyProfilesContext:
+    session: AsyncSession
+    repository: ProxyProfilesRepository
+    service: ProxyProfilesService
 
 
 @dataclass(slots=True)
@@ -153,6 +162,7 @@ async def _proxy_repo_context() -> AsyncIterator[ProxyRepositories]:
             sticky_sessions=StickySessionsRepository(session),
             api_keys=ApiKeysRepository(session),
             additional_usage=AdditionalUsageRepository(session),
+            proxy_profiles=ProxyProfilesRepository(session),
         )
 
 
@@ -212,6 +222,14 @@ def get_settings_context(
     repository = SettingsRepository(session)
     service = SettingsService(repository)
     return SettingsContext(session=session, repository=repository, service=service)
+
+
+def get_proxy_profiles_context(
+    session: AsyncSession = Depends(get_session),
+) -> ProxyProfilesContext:
+    repository = ProxyProfilesRepository(session)
+    service = ProxyProfilesService(repository)
+    return ProxyProfilesContext(session=session, repository=repository, service=service)
 
 
 def get_dashboard_context(

@@ -31,6 +31,8 @@ describe("RecentRequestsTable", () => {
              planType: "plus",
              status: "active",
              additionalQuotas: [],
+             proxyAssignmentMode: "inherit_default",
+             proxyProfileId: null,
            },
          ]}
         requests={[

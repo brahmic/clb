@@ -9,6 +9,7 @@ from app.modules.settings.repository import SettingsRepository
 class DashboardSettingsData:
     sticky_threads_enabled: bool
     upstream_stream_transport: str
+    default_proxy_profile_id: str | None
     prefer_earlier_reset_accounts: bool
     routing_strategy: str
     openai_cache_affinity_max_age_seconds: int
@@ -22,6 +23,7 @@ class DashboardSettingsData:
 class DashboardSettingsUpdateData:
     sticky_threads_enabled: bool
     upstream_stream_transport: str
+    default_proxy_profile_id: str | None
     prefer_earlier_reset_accounts: bool
     routing_strategy: str
     openai_cache_affinity_max_age_seconds: int
@@ -39,6 +41,7 @@ class SettingsService:
         return DashboardSettingsData(
             sticky_threads_enabled=row.sticky_threads_enabled,
             upstream_stream_transport=row.upstream_stream_transport,
+            default_proxy_profile_id=row.default_proxy_profile_id,
             prefer_earlier_reset_accounts=row.prefer_earlier_reset_accounts,
             routing_strategy=row.routing_strategy,
             openai_cache_affinity_max_age_seconds=row.openai_cache_affinity_max_age_seconds,
@@ -55,6 +58,7 @@ class SettingsService:
         row = await self._repository.update(
             sticky_threads_enabled=payload.sticky_threads_enabled,
             upstream_stream_transport=payload.upstream_stream_transport,
+            default_proxy_profile_id=payload.default_proxy_profile_id,
             prefer_earlier_reset_accounts=payload.prefer_earlier_reset_accounts,
             routing_strategy=payload.routing_strategy,
             openai_cache_affinity_max_age_seconds=payload.openai_cache_affinity_max_age_seconds,
@@ -65,6 +69,7 @@ class SettingsService:
         return DashboardSettingsData(
             sticky_threads_enabled=row.sticky_threads_enabled,
             upstream_stream_transport=row.upstream_stream_transport,
+            default_proxy_profile_id=row.default_proxy_profile_id,
             prefer_earlier_reset_accounts=row.prefer_earlier_reset_accounts,
             routing_strategy=row.routing_strategy,
             openai_cache_affinity_max_age_seconds=row.openai_cache_affinity_max_age_seconds,

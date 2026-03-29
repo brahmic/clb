@@ -29,6 +29,7 @@ class UsageClientState:
     calls: int = 0
     auth: str | None = None
     account: str | None = None
+    proxy: str | None = None
 
 
 class StubRequestContext:
@@ -38,11 +39,13 @@ class StubRequestContext:
         state: UsageClientState,
         headers: dict[str, str],
         retry_options: object | None,
+        proxy: str | None,
     ) -> None:
         self._responses = responses
         self._state = state
         self._headers = headers
         self._retry_options = retry_options
+        self._proxy = proxy
 
     async def __aenter__(self) -> StubResponse:
         attempts = getattr(self._retry_options, "attempts", 1)
@@ -54,6 +57,7 @@ class StubRequestContext:
             self._state.calls += 1
             self._state.auth = self._headers.get("Authorization")
             self._state.account = self._headers.get("chatgpt-account-id")
+            self._state.proxy = self._proxy
             if response.status in statuses and attempt < attempts - 1:
                 continue
             return response
@@ -76,9 +80,10 @@ class StubRetryClient:
         url: str,
         headers: dict[str, str] | None = None,
         timeout: object | None = None,
+        proxy: str | None = None,
         retry_options: object | None = None,
     ) -> StubRequestContext:
-        return StubRequestContext(self._responses, self._state, headers or {}, retry_options)
+        return StubRequestContext(self._responses, self._state, headers or {}, retry_options, proxy)
 
 
 @pytest.fixture
@@ -129,6 +134,7 @@ async def test_fetch_usage_retries_and_returns_payload(usage_server):
     assert state.calls == 2
     assert state.auth == "Bearer access-token"
     assert state.account == "acc_test"
+    assert state.proxy is None
 
 
 @pytest.mark.asyncio
@@ -146,3 +152,20 @@ async def test_fetch_usage_raises_after_retries(failing_usage_server):
     exc = excinfo.value
     assert isinstance(exc, UsageFetchError)
     assert exc.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_fetch_usage_passes_explicit_proxy_url(usage_server):
+    base_url, client, state = usage_server
+
+    await fetch_usage(
+        access_token="access-token",
+        account_id="acc_test",
+        base_url=base_url,
+        max_retries=1,
+        timeout_seconds=2.0,
+        client=client,
+        proxy_url="http://xray-client:20080",
+    )
+
+    assert state.proxy == "http://xray-client:20080"

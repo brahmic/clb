@@ -218,6 +218,22 @@ class AccountsRepository:
         await self._session.commit()
         return result.scalar_one_or_none() is not None
 
+    async def update_connection(
+        self,
+        account_id: str,
+        *,
+        mode: str,
+        proxy_profile_id: str | None,
+    ) -> bool:
+        result = await self._session.execute(
+            update(Account)
+            .where(Account.id == account_id)
+            .values(proxy_assignment_mode=mode, proxy_profile_id=proxy_profile_id)
+            .returning(Account.id)
+        )
+        await self._session.commit()
+        return result.scalar_one_or_none() is not None
+
     async def _merge_by_email_enabled(self) -> bool:
         settings = await self._session.get(DashboardSettings, _SETTINGS_ROW_ID)
         if settings is None:

@@ -16,6 +16,8 @@ describe("AccountSummarySchema", () => {
       displayName: "User",
       planType: "pro",
       status: "active",
+      proxyAssignmentMode: "inherit_default",
+      proxyProfileId: null,
       usage: {
         primaryRemainingPercent: 85,
         secondaryRemainingPercent: null,
@@ -45,6 +47,7 @@ describe("AccountSummarySchema", () => {
     });
 
     expect(parsed.accountId).toBe("acc-1");
+    expect(parsed.proxyAssignmentMode).toBe("inherit_default");
     expect(parsed.usage?.primaryRemainingPercent).toBe(85);
     expect(parsed.windowMinutesSecondary).toBe(10080);
     expect(parsed.requestUsage?.totalCostUsd).toBe(0.02);

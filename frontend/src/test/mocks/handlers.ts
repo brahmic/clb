@@ -24,6 +24,7 @@ import {
   type DashboardSettings,
   type RequestLogEntry,
 } from "@/test/mocks/factories";
+import type { ProxyProfile } from "@/features/proxy-profiles/schemas";
 
 const MODEL_OPTION_DELIMITER = ":::";
 const STATUS_ORDER = ["ok", "rate_limit", "quota", "error"] as const;
@@ -60,6 +61,7 @@ const ApiKeyUpdatePayloadSchema = z.object({
 const SettingsPayloadSchema = z.object({
   stickyThreadsEnabled: z.boolean().optional(),
   upstreamStreamTransport: z.enum(["default", "auto", "http", "websocket"]).optional(),
+  defaultProxyProfileId: z.string().nullable().optional(),
   preferEarlierResetAccounts: z.boolean().optional(),
   routingStrategy: z.enum(["usage_weighted", "round_robin"]).optional(),
   openaiCacheAffinityMaxAgeSeconds: z.number().int().positive().optional(),
@@ -67,6 +69,16 @@ const SettingsPayloadSchema = z.object({
   totpRequiredOnLogin: z.boolean().optional(),
   totpConfigured: z.boolean().optional(),
   apiKeyAuthEnabled: z.boolean().optional(),
+}).passthrough();
+
+const ProxyProfilePayloadSchema = z.object({
+  name: z.string().min(1),
+  vlessUri: z.string().min(1).optional(),
+}).passthrough();
+
+const AccountConnectionPayloadSchema = z.object({
+  mode: z.enum(["inherit_default", "direct", "proxy_profile"]),
+  proxyProfileId: z.string().nullable().optional(),
 }).passthrough();
 
 // ── Helpers ──
@@ -81,11 +93,22 @@ async function parseJsonBody<T>(request: Request, schema: z.ZodType<T>): Promise
   }
 }
 
+function inferTransportKind(vlessUri: string): ProxyProfile["transportKind"] {
+  if (vlessUri.includes("security=reality")) {
+    return "reality_tcp";
+  }
+  if (vlessUri.includes("security=tls") && vlessUri.includes("type=tcp")) {
+    return "tls_tcp";
+  }
+  return "ws_tls";
+}
+
 type MockState = {
   accounts: AccountSummary[];
   requestLogs: RequestLogEntry[];
   authSession: DashboardAuthSession;
   settings: DashboardSettings;
+  proxyProfiles: ProxyProfile[];
   apiKeys: ApiKey[];
   firewallEntries: Array<{ ipAddress: string; createdAt: string }>;
   stickySessions: Array<{
@@ -105,6 +128,7 @@ function createInitialState(): MockState {
     requestLogs: createDefaultRequestLogs(),
     authSession: createDashboardAuthSession(),
     settings: createDashboardSettings(),
+    proxyProfiles: [],
     apiKeys: createDefaultApiKeys(),
     firewallEntries: [],
     stickySessions: [],
@@ -335,6 +359,25 @@ export const handlers = [
     return HttpResponse.json({ status: "deleted" });
   }),
 
+  http.put("/api/accounts/:accountId/connection", async ({ params, request }) => {
+    const payload = await parseJsonBody(request, AccountConnectionPayloadSchema);
+    const accountId = String(params.accountId);
+    const account = findAccount(accountId);
+    if (!account || !payload) {
+      return HttpResponse.json(
+        { error: { code: "account_not_found", message: "Account not found" } },
+        { status: 404 },
+      );
+    }
+    account.proxyAssignmentMode = payload.mode;
+    account.proxyProfileId = payload.mode === "proxy_profile" ? payload.proxyProfileId ?? null : null;
+    return HttpResponse.json({
+      accountId,
+      mode: account.proxyAssignmentMode,
+      proxyProfileId: account.proxyProfileId,
+    });
+  }),
+
   http.post("/api/oauth/start", async ({ request }) => {
     const payload = await parseJsonBody(request, OauthStartPayloadSchema);
     if (payload?.forceMethod === "device") {
@@ -364,6 +407,85 @@ export const handlers = [
 
   http.get("/api/settings", () => {
     return HttpResponse.json(state.settings);
+  }),
+
+  http.get("/api/proxy-profiles", () => {
+    return HttpResponse.json({ profiles: state.proxyProfiles });
+  }),
+
+  http.get("/api/proxy-profiles/statuses", () => {
+    return HttpResponse.json({
+      statuses: state.proxyProfiles.map((profile, index) => ({
+        profileId: profile.id,
+        status: "ok",
+        egressIp: `203.0.113.${index + 10}`,
+        lastError: null,
+        checkedAt: new Date().toISOString(),
+        latencyMs: 120 + index,
+      })),
+    });
+  }),
+
+  http.post("/api/proxy-profiles", async ({ request }) => {
+    const payload = await parseJsonBody(request, ProxyProfilePayloadSchema);
+    if (!payload?.name || !payload.vlessUri) {
+      return HttpResponse.json({ error: { code: "invalid_proxy_profile", message: "Invalid proxy profile" } }, { status: 400 });
+    }
+    const profile: ProxyProfile = {
+      id: `proxy_${state.proxyProfiles.length + 1}`,
+      name: payload.name,
+      protocol: "vless",
+      transportKind: inferTransportKind(payload.vlessUri),
+      serverHost: "proxy.example.com",
+      serverPort: 443,
+      localProxyPort: 20080 + state.proxyProfiles.length,
+    };
+    state.proxyProfiles = [...state.proxyProfiles, profile];
+    return HttpResponse.json(profile);
+  }),
+
+  http.put("/api/proxy-profiles/:profileId", async ({ params, request }) => {
+    const payload = await parseJsonBody(request, ProxyProfilePayloadSchema);
+    const profileId = String(params.profileId);
+    const current = state.proxyProfiles.find((item) => item.id === profileId);
+    if (!current || !payload?.name) {
+      return HttpResponse.json(
+        { error: { code: "proxy_profile_not_found", message: "Proxy profile not found" } },
+        { status: 404 },
+      );
+    }
+    const updated: ProxyProfile = {
+      ...current,
+      name: payload.name,
+      transportKind: payload.vlessUri ? inferTransportKind(payload.vlessUri) : current.transportKind,
+    };
+    state.proxyProfiles = state.proxyProfiles.map((item) => (item.id === profileId ? updated : item));
+    return HttpResponse.json(updated);
+  }),
+
+  http.delete("/api/proxy-profiles/:profileId", ({ params }) => {
+    const profileId = String(params.profileId);
+    const current = state.proxyProfiles.find((item) => item.id === profileId);
+    if (!current) {
+      return HttpResponse.json(
+        { error: { code: "proxy_profile_not_found", message: "Proxy profile not found" } },
+        { status: 404 },
+      );
+    }
+    state.proxyProfiles = state.proxyProfiles.filter((item) => item.id !== profileId);
+    if (state.settings.defaultProxyProfileId === profileId) {
+      state.settings = createDashboardSettings({
+        ...state.settings,
+        defaultProxyProfileId: null,
+      });
+    }
+    for (const account of state.accounts) {
+      if (account.proxyProfileId === profileId) {
+        account.proxyAssignmentMode = "inherit_default";
+        account.proxyProfileId = null;
+      }
+    }
+    return HttpResponse.json(current);
   }),
 
   http.get("/api/firewall/ips", () => {

@@ -22,6 +22,7 @@ from app.modules.accounts.repository import AccountsRepository
 from app.modules.accounts.schemas import (
     AccountAdditionalQuota,
     AccountAdditionalWindow,
+    AccountConnectionResponse,
     AccountImportResponse,
     AccountRequestUsage,
     AccountSummary,
@@ -184,3 +185,25 @@ class AccountsService:
 
     async def delete_account(self, account_id: str) -> bool:
         return await self._repo.delete(account_id)
+
+    async def update_connection(
+        self,
+        account_id: str,
+        *,
+        mode: str,
+        proxy_profile_id: str | None,
+    ) -> AccountConnectionResponse | None:
+        if mode != "proxy_profile":
+            proxy_profile_id = None
+        updated = await self._repo.update_connection(
+            account_id,
+            mode=mode,
+            proxy_profile_id=proxy_profile_id,
+        )
+        if not updated:
+            return None
+        return AccountConnectionResponse(
+            account_id=account_id,
+            mode=mode,
+            proxy_profile_id=proxy_profile_id,
+        )

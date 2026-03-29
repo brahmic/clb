@@ -65,6 +65,8 @@ export function createAccountSummary(overrides: Partial<AccountSummary> = {}): A
     displayName: "primary@example.com",
     planType: "plus",
     status: "active",
+    proxyAssignmentMode: "inherit_default",
+    proxyProfileId: null,
     usage: {
       primaryRemainingPercent: 82,
       secondaryRemainingPercent: 67,
@@ -281,6 +283,7 @@ export function createDashboardSettings(overrides: Partial<DashboardSettings> = 
   return DashboardSettingsSchema.parse({
     stickyThreadsEnabled: true,
     upstreamStreamTransport: "default",
+    defaultProxyProfileId: null,
     preferEarlierResetAccounts: false,
     routingStrategy: "usage_weighted",
     openaiCacheAffinityMaxAgeSeconds: 300,

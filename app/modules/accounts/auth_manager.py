@@ -11,6 +11,7 @@ from app.core.crypto import TokenEncryptor
 from app.core.plan_types import coerce_account_plan_type
 from app.core.utils.time import utcnow
 from app.db.models import Account, AccountStatus
+from app.modules.proxy_profiles.runtime import resolve_account_proxy_connection_from_db
 
 
 class AccountsRepositoryPort(Protocol):
@@ -51,8 +52,9 @@ class AuthManager:
 
     async def refresh_account(self, account: Account) -> Account:
         refresh_token = self._encryptor.decrypt(account.refresh_token_encrypted)
+        connection = await resolve_account_proxy_connection_from_db(account)
         try:
-            result = await refresh_access_token(refresh_token)
+            result = await refresh_access_token(refresh_token, proxy_url=connection.proxy_url)
         except RefreshError as exc:
             if exc.is_permanent:
                 reason = PERMANENT_FAILURE_CODES.get(exc.code, exc.message)

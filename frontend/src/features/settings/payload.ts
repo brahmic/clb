@@ -7,6 +7,7 @@ export function buildSettingsUpdateRequest(
   return {
     stickyThreadsEnabled: settings.stickyThreadsEnabled,
     upstreamStreamTransport: settings.upstreamStreamTransport,
+    defaultProxyProfileId: settings.defaultProxyProfileId ?? null,
     preferEarlierResetAccounts: settings.preferEarlierResetAccounts,
     routingStrategy: settings.routingStrategy,
     openaiCacheAffinityMaxAgeSeconds: settings.openaiCacheAffinityMaxAgeSeconds,

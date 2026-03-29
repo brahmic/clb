@@ -10,6 +10,7 @@ from app.core.auth.dependencies import set_dashboard_error_format, validate_dash
 from app.core.config.settings_cache import get_settings_cache
 from app.core.exceptions import DashboardBadRequestError
 from app.dependencies import SettingsContext, get_settings_context
+from app.modules.proxy_profiles.repository import ProxyProfilesRepository
 from app.modules.settings.schemas import (
     DashboardSettingsResponse,
     DashboardSettingsUpdateRequest,
@@ -77,6 +78,7 @@ async def get_settings(
     return DashboardSettingsResponse(
         sticky_threads_enabled=settings.sticky_threads_enabled,
         upstream_stream_transport=settings.upstream_stream_transport,
+        default_proxy_profile_id=settings.default_proxy_profile_id,
         prefer_earlier_reset_accounts=settings.prefer_earlier_reset_accounts,
         routing_strategy=settings.routing_strategy,
         openai_cache_affinity_max_age_seconds=settings.openai_cache_affinity_max_age_seconds,
@@ -98,11 +100,21 @@ async def update_settings(
     context: SettingsContext = Depends(get_settings_context),
 ) -> DashboardSettingsResponse:
     current = await context.service.get_settings()
+    if payload.default_proxy_profile_id is not None:
+        profile_repo = ProxyProfilesRepository(context.session)
+        profile = await profile_repo.get_by_id(payload.default_proxy_profile_id)
+        if profile is None:
+            raise DashboardBadRequestError("Default proxy profile not found", code="proxy_profile_not_found")
     try:
         updated = await context.service.update_settings(
             DashboardSettingsUpdateData(
                 sticky_threads_enabled=payload.sticky_threads_enabled,
                 upstream_stream_transport=payload.upstream_stream_transport or current.upstream_stream_transport,
+                default_proxy_profile_id=(
+                    payload.default_proxy_profile_id
+                    if "default_proxy_profile_id" in payload.model_fields_set
+                    else current.default_proxy_profile_id
+                ),
                 prefer_earlier_reset_accounts=payload.prefer_earlier_reset_accounts,
                 routing_strategy=payload.routing_strategy or current.routing_strategy,
                 openai_cache_affinity_max_age_seconds=(
@@ -134,6 +146,7 @@ async def update_settings(
     return DashboardSettingsResponse(
         sticky_threads_enabled=updated.sticky_threads_enabled,
         upstream_stream_transport=updated.upstream_stream_transport,
+        default_proxy_profile_id=updated.default_proxy_profile_id,
         prefer_earlier_reset_accounts=updated.prefer_earlier_reset_accounts,
         routing_strategy=updated.routing_strategy,
         openai_cache_affinity_max_age_seconds=updated.openai_cache_affinity_max_age_seconds,

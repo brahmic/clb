@@ -12,6 +12,7 @@ async def test_settings_api_get_and_update(async_client):
     payload = response.json()
     assert payload["stickyThreadsEnabled"] is False
     assert payload["upstreamStreamTransport"] == "default"
+    assert payload["defaultProxyProfileId"] is None
     assert payload["preferEarlierResetAccounts"] is False
     assert payload["routingStrategy"] == "usage_weighted"
     assert payload["openaiCacheAffinityMaxAgeSeconds"] == 1800
@@ -50,6 +51,7 @@ async def test_settings_api_get_and_update(async_client):
     payload = response.json()
     assert payload["stickyThreadsEnabled"] is True
     assert payload["upstreamStreamTransport"] == "websocket"
+    assert payload["defaultProxyProfileId"] is None
     assert payload["preferEarlierResetAccounts"] is True
     assert payload["routingStrategy"] == "round_robin"
     assert payload["openaiCacheAffinityMaxAgeSeconds"] == 180
